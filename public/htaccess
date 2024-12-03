@@ -1,0 +1,40 @@
+# Disable directory browsing
+Options -Indexes
+
+# ----------------------------------------------------------------------
+# Rewrite engine
+# ----------------------------------------------------------------------
+
+<IfModule mod_rewrite.c>
+    Options +FollowSymlinks
+    RewriteEngine On
+
+    # Đặt RewriteBase nếu bạn đang ở thư mục gốc hoặc subfolder
+    # Nếu CodeIgniter nằm trong thư mục gốc (public_html/public)
+    RewriteBase /
+
+    # Nếu CodeIgniter nằm trong subfolder, ví dụ /project
+    # RewriteBase /project
+
+    # Redirect Trailing Slashes (xóa dấu / ở cuối URL nếu không phải thư mục)
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Đảm bảo các yêu cầu không phải file hay thư mục sẽ được chuyển tới index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+
+    # Đảm bảo header Authorization được truyền đi
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # Nếu mod_rewrite không được bật, chuyển hướng 404 về index.php
+    ErrorDocument 404 /index.php
+</IfModule>
+
+# Disable server signature
+ServerSignature Off
