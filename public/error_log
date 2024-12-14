@@ -1,0 +1,2 @@
+[03-Dec-2024 14:55:33 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home/malivn/mtd.mali.vn/app/Controllers/Home.php on line 5
+[03-Dec-2024 14:55:36 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home/malivn/mtd.mali.vn/app/Controllers/Home.php on line 5

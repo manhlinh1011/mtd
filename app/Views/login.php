@@ -13,13 +13,13 @@
                 <div class="col-md-8">
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="text-center">Login</h4>
+                            <h4 class="text-center">MTD LOGIN</h4>
                             <?php if (session()->getFlashdata('error')): ?>
                                 <div class="alert alert-danger">
                                     <?= session()->getFlashdata('error') ?>
                                 </div>
                             <?php endif; ?>
-                            <form action="/login/authenticate" method="post">
+                            <form action="<?=base_url("/login/authenticate")?>" method="post">
                                 <div class="mb-3">
                                     <label for="username" class="form-label">Username</label>
                                     <input type="text" class="form-control" id="username" name="username" required>
@@ -36,6 +36,7 @@
             </div>
         </div>
     </div>
-    <script src="/assets/js/bootstrap.bundle.min.js"></script>
+    <script src="assets\js\vendor.min.js"></script>
+    <script src="assets\js\app.min.js"></script>
 </body>
 </html>

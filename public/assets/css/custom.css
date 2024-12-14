@@ -1,0 +1,17 @@
+.table td,
+.table th {
+    padding: 5px;
+    vertical-align: middle;
+}
+
+.table th {
+    text-align: center;
+}
+
+#wrapper {
+    width: 100% !important;
+}
+
+.bangdonhang {
+    font-size: 14px;
+}

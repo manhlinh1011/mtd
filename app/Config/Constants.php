@@ -1,5 +1,7 @@
 <?php
 
+define('CI_ENVIRONMENT', 'development');
+
 /*
  | --------------------------------------------------------------------
  | App Namespace
