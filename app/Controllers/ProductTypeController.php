@@ -15,7 +15,7 @@ class ProductTypeController extends BaseController
 
     public function index()
     {
-        $data['product_types'] = $this->productTypeModel->findAll();
+        $data['product_types'] = $this->productTypeModel->getProductTypeStatisticsFull();
         return view('product_types/index', $data);
     }
 

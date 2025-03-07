@@ -15,3 +15,28 @@
 .bangdonhang {
     font-size: 14px;
 }
+
+.toast-container {
+    top: 20px;
+    /* Cách mép trên màn hình 20px */
+    right: 20px;
+    /* Cách mép phải màn hình 20px */
+    z-index: 1055;
+    /* Hiển thị nổi trên các phần tử khác */
+}
+
+.cart-icon {
+    position: relative;
+}
+
+.cart-icon .badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(50%, -50%);
+    font-size: 0.75rem;
+}
+
+.navigation-menu>li>a {
+    color: #458bc4 !important;
+}

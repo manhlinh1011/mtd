@@ -167,11 +167,13 @@ class User extends BaseController
             $data['password'] = password_hash($password, PASSWORD_DEFAULT);
         }
 
-        // Xử lý ảnh đại diện nếu có tải lên
+        // Trong phương thức update()
         $file = $this->request->getFile('profile_picture');
-        if ($file && $file->isValid() && !$file->hasMoved()) {
+        if (
+            $file && $file->isValid() && !$file->hasMoved()
+        ) {
             $fileName = $file->getRandomName();
-            $file->move(WRITEPATH . 'uploads', $fileName);
+            $file->move(ROOTPATH . 'public/uploads', $fileName); // Thay đổi đường dẫn thành public/uploads
             $data['profile_picture'] = $fileName;
         }
 

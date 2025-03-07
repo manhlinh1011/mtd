@@ -12,8 +12,10 @@ class AuthCheck implements FilterInterface
     {
         $session = session();
 
+        $allowedRoutes = ['login', 'register', 'tracking', 'tracking/check']; // ✅ Thêm tracking vào ngoại lệ
+
         // Nếu chưa đăng nhập và truy cập các route không được phép
-        if (!$session->get('logged_in') && !in_array($request->getPath(), ['login', 'register'])) {
+        if (!$session->get('logged_in') && !in_array($request->getPath(), $allowedRoutes)) {
             return redirect()->to('/login');
         }
 

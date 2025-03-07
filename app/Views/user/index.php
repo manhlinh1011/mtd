@@ -6,9 +6,10 @@
         <div class="col-12">
             <div>
                 <h5 class="font-14">Danh sách nhân viên</h5>
-                <p class="sub-header">
-                    Chỉ admin mới có quyền thêm sửa xóa nhân viên
-                </p>
+                <div class="alert alert-warning">
+                    Chỉ admin mới có quyền thêm sửa xóa nhân viên <br />
+                    Hạn chế xóa nhân viên để tránh rủi ro
+                </div>
                 <div>
                     <a class="btn btn-primary" href="<?= base_url('user/create') ?>">Thêm nhân viên</a>
                 </div>
@@ -38,11 +39,11 @@
                                 <tbody>
                                     <?php foreach ($users as $user): ?>
                                         <tr>
-                                            <td style="text-align: center;"><?= $user['id'] ?></td>
-                                            <td><?= $user['username'] ?></td>
-                                            <td><?= $user['fullname'] ?></td>
-                                            <td><?= $user['email'] ?></td>
-                                            <td>
+                                            <td class="text-center"><?= $user['id'] ?></td>
+                                            <td class="text-center"><?= $user['username'] ?></td>
+                                            <td class="text-center"><?= $user['fullname'] ?></td>
+                                            <td class="text-center"><?= $user['email'] ?></td>
+                                            <td class="text-center">
                                                 <?php if (!empty($user['roles'])): ?>
                                                     <?= implode(', ', array_map(fn($role) => $role['role_name'], $user['roles'])) ?>
                                                 <?php else: ?>

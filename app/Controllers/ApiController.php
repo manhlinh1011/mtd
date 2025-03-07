@@ -77,6 +77,24 @@ class ApiController extends ResourceController
                 ], 400);
             }
 
+            // Lấy thông tin khách hàng để lấy giá mặc định
+            $customer = $this->customerModel->find($data['customer_id']);
+            if (!$customer) {
+                return $this->respond([
+                    'status' => 404,
+                    'message' => 'Không tìm thấy thông tin khách hàng',
+                    'error' => 'Customer ID không hợp lệ'
+                ], 404);
+            }
+
+            // Bổ sung thông tin giá mặc định từ khách hàng vào đơn hàng
+            $data['price_per_kg'] = $customer['price_per_kg'];
+            $data['price_per_cubic_meter'] = $customer['price_per_cubic_meter'];
+
+            //$data['price_per_kg'] = 18000;
+            //$data['price_per_cubic_meter'] = 2500000;
+
+
             // Lưu dữ liệu vào bảng orders
             $this->orderModel->insert($data);
 

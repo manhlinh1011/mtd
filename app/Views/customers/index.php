@@ -8,7 +8,7 @@
                 <div>
                     <div class="row">
                         <div class="col-sm-12">
-                            <h1 class="my-4">Danh sách Khách hàng</h1>
+                            <h5 class="my-4">Danh sách Khách hàng</h5>
                             <?php if (session()->has('error')): ?>
                                 <div class="alert alert-danger">
                                     <?= session('error') ?>
@@ -22,30 +22,33 @@
                             <?php endif; ?>
                             <form action="/customers/update-bulk" method="POST">
                                 <?= csrf_field() ?>
-                                <a href="/customers/create" class="btn btn-primary mb-3">Thêm Khách hàng</a>
-                                <button type="submit" class="btn btn-success mb-3">Cập Nhật Hàng Loạt</button>
+                                <a href="/customers/create" class="btn btn-primary mb-3"><i class="mdi mdi-account-plus"></i> Thêm Khách hàng</a>
+                                <button type="submit" class="btn btn-success mb-3"><i class="mdi mdi-sync"></i> Cập Nhật Hàng Loạt</button>
                                 <table id="datatable" class="table table-striped table-bordered">
                                     <thead>
                                         <tr>
                                             <th>ID</th>
                                             <th>Mã khách hàng</th>
                                             <th>Họ và tên</th>
-                                            <th>Giá 1kg</th>
-                                            <th>Giá 1 mét khối</th>
+                                            <th>Số dư</th>
+                                            <th>Giá kg</th>
+                                            <th>Giá khối</th>
                                             <th>Số điện thoại</th>
                                             <th>Địa chỉ</th>
                                             <th>Link Zalo</th>
                                             <th>Email</th>
-
+                                            <th>Số đơn hàng</th>
+                                            <th>Phiếu xuất</th>
                                             <th>Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($customers as $customer): ?>
                                             <tr>
-                                                <td><?= $customer['id'] ?></td>
-                                                <td><?= $customer['customer_code'] ?></td>
-                                                <td><?= $customer['fullname'] ?></td>
+                                                <td class="text-center"><?= $customer['id'] ?></td>
+                                                <td class="text-center"><a href="<?= base_url() ?>customers/detail/<?= $customer['id'] ?>"> <?= $customer['customer_code'] ?></a></td>
+                                                <td class="text-center"><?= $customer['fullname'] ?></td>
+                                                <td class="text-center"><?= number_format($customer['dynamic_balance'], 0, ',', '.') ?></td>
                                                 <td style="text-align: center;">
                                                     <input type="text" style="width: 60px; text-align: center;"
                                                         name="customers[<?= $customer['id'] ?>][price_per_kg]"
@@ -62,9 +65,9 @@
                                                         data-raw="<?= $customer['price_per_cubic_meter'] ?>"
                                                         placeholder="Nhập giá 1 mét khối">
                                                 </td>
-                                                <td><?= $customer['phone'] ?></td>
+                                                <td class="text-center"><?= $customer['phone'] ?></td>
                                                 <td><?= $customer['address'] ?></td>
-                                                <td>
+                                                <td class="text-center">
                                                     <?php if (!empty($customer['zalo_link'])): ?>
                                                         <a href="<?= $customer['zalo_link'] ?>" target="_blank">Zalo</a>
                                                     <?php else: ?>
@@ -72,10 +75,11 @@
                                                     <?php endif; ?>
                                                 </td>
                                                 <td><?= $customer['email'] ?></td>
-
+                                                <td class="text-center"><?= $customer['order_count'] ?></td>
+                                                <td class="text-center"><?= $customer['paid_invoice_count'] ?>/<?= $customer['invoice_count'] ?></td>
                                                 <td class="text-center" style="padding: 2px;">
-                                                    <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;">Sửa</a>
-                                                    <a href="/customers/delete/<?= $customer['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')" style="padding: 2px 8px;">Xóa</a>
+                                                    <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-pencil"></i></a>
+                                                    <a href="/customers/delete/<?= $customer['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')" style="padding: 2px 8px;"><i class="mdi mdi-trash-can"></i></a>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -116,6 +120,84 @@
         document.querySelectorAll('.price-input').forEach(input => {
             // Loại bỏ dấu . ngăn cách trước khi gửi
             input.value = input.value.replace(/\./g, '');
+        });
+    });
+</script>
+
+
+
+<?= $this->endSection() ?>
+
+
+
+
+<?= $this->section('scripts') ?>
+<!-- Scripts -->
+<script src="<?= base_url('') ?>assets/js/vendor.min.js"></script>
+<script src="<?= base_url('') ?>assets/js/pages/dashboard.init.js"></script>
+<script src="<?= base_url('') ?>assets/js/app.min.js"></script>
+<!-- Required datatable js -->
+<script src="<?= base_url('') ?>assets/libs/datatables/jquery.dataTables.min.js"></script>
+<script src="<?= base_url('') ?>assets/libs/datatables/dataTables.bootstrap4.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $("#datatable").DataTable({
+            pageLength: 15,
+            order: [
+                [0, 'desc']
+            ],
+            lengthMenu: [
+                [10, 15, 20, 50, 100],
+                [10, 15, 20, 50, 100]
+            ],
+            columnDefs: [{
+                    targets: [4, 5, 6, 7, 8, 9, 12], // Giá kg, Giá khối, SĐT, Địa chỉ, Zalo, Email, Hành động
+                    orderable: false
+                },
+                {
+                    targets: 0, // Cột ID
+                    type: 'num',
+                    render: function(data, type) {
+                        if (type === 'sort') {
+                            return parseInt(data.replace(/[^0-9]/g, '')) || 0;
+                        }
+                        return data;
+                    }
+                },
+                {
+                    targets: 10, // Cột Số đơn hàng
+                    type: 'num',
+                    render: function(data, type) {
+                        return type === 'sort' ? parseInt(data) || 0 : data;
+                    }
+                },
+                {
+                    targets: 3, // Cột Số dư
+                    type: 'num',
+                    render: function(data, type) {
+                        if (type === 'sort') {
+                            return parseInt(data.replace(/\./g, '')) || 0;
+                        }
+                        return data;
+                    }
+                },
+                {
+                    targets: 11, // Cột Phiếu xuất
+                    type: 'num',
+                    render: function(data, type) {
+                        if (type === 'sort') {
+                            // Sắp xếp dựa trên tổng số phiếu xuất (phần sau dấu /)
+                            const parts = data.split('/');
+                            return parseInt(parts[1]) || 0;
+                        }
+                        return data;
+                    }
+                }
+            ],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/vi.json'
+            }
         });
     });
 </script>

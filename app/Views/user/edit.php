@@ -101,7 +101,7 @@
                         <div class="col-sm-10">
                             <input type="file" class="form-control-file" id="profile_picture" name="profile_picture" accept="image/*">
                             <?php if (!empty($user['profile_picture'])): ?>
-                                <img src="<?= base_url('writable/uploads/' . $user['profile_picture']) ?>" alt="Profile Picture" class="img-thumbnail mt-2" width="100">
+                                <img src="<?= base_url('uploads/' . $user['profile_picture']) ?>" alt="Profile Picture" class="img-thumbnail mt-2" width="100">
                             <?php endif; ?>
                         </div>
                     </div>

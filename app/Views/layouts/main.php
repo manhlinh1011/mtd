@@ -13,11 +13,59 @@
     <link href="<?= base_url('assets/css/icons.min.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/css/app.min.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/css/custom.css') ?>" rel="stylesheet" type="text/css">
+    <link href="<?= base_url() ?>assets/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css">
 
     <link href="<?= base_url('assets/libs/datatables/dataTables.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/libs/datatables/buttons.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/libs/datatables/responsive.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/libs/datatables/select.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+    <style>
+        a,
+        p,
+        b,
+        strong {
+            font-family: 'Arial', sans-serif !important;
+        }
+    </style>
+    <?= $this->renderSection('styles') ?>
+    <!-- Custom Scripts -->
+
+
+    <script>
+        // Hiển thị Toast Notification
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+
+            const toastHtml = `
+                <div class="toast align-items-center text-bg-${type} border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+
+            // Thêm thông báo vào container
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+            // Tự động xóa thông báo sau 3 giây
+            setTimeout(() => {
+                const toastElement = toastContainer.querySelector('.toast');
+                if (toastElement) {
+                    toastElement.remove();
+                }
+            }, 3000);
+        }
+
+        // Cập nhật số lượng giỏ hàng
+        function updateCartCount(newCount) {
+            const cartCountElement = document.getElementById('cart-count');
+            cartCountElement.textContent = newCount;
+        }
+    </script>
 </head>
 
 <body>
@@ -39,14 +87,13 @@
         </div>
     </div>
 
+
+    <!-- Scripts -->
     <script src="<?= base_url('') ?>assets/js/vendor.min.js"></script>
-    <script src="<?= base_url('') ?>assets/libs/morris-js/morris.min.js"></script>
-    <script src="<?= base_url('') ?>assets/libs/raphael/raphael.min.js"></script>
-    <script src="<?= base_url('') ?>assets/js/pages/dashboard.init.js"></script>
+    <script src="<?= base_url('') ?>assets/libs/sweetalert2/sweetalert2.min.js"></script>
     <script src="<?= base_url('') ?>assets/js/app.min.js"></script>
-
-
-
+    <?= $this->renderSection('scripts') ?>
 </body>
+
 
 </html>

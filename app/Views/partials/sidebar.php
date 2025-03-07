@@ -13,24 +13,25 @@ $role = $session->get('role');
             <p class="text-muted m-0"><?= $role ?></p>
         </div>
     </div>
+    <hr />
     <div id="sidebar-menu">
         <ul class="metismenu" id="side-menu">
-            <li class="menu-title">Navigation</li>
-            <li><a href="<?= base_url('/dashboard') ?>"><i class="mdi mdi-home-outline"></i> <span> Dashboard </span></a></li>
+            <li><a href="<?= base_url('/dashboard') ?>"><i class="mdi mdi-view-dashboard"></i></i> <span> Dashboard </span></a></li>
             <li>
                 <a href="javascript: void(0);">
-                    <i class=" fas fa-address-book"></i>
+                    <i class="mdi mdi-account-multiple-outline"></i>
                     <span> Quản lý nhân viên </span>
                     <span class="menu-arrow"></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li><a href="<?= base_url('/user') ?>">Nhân viên</a></li>
                     <li><a href="<?= base_url('/user/manageRoles') ?>">Vai trò</a></li>
+                    <li><a href="<?= base_url('/permissions') ?>">Chức năng</a></li>
                 </ul>
             </li>
             <li>
                 <a href="javascript: void(0);">
-                    <i class="far fa-address-book"></i>
+                    <i class="mdi mdi-account-outline"></i>
                     <span> Khách hàng</span>
                     <span class="menu-arrow"></span>
                 </a>
@@ -42,7 +43,7 @@ $role = $session->get('role');
 
             <li>
                 <a href="javascript: void(0);">
-                    <i class="mdi mdi-format-list-bulleted-type"></i>
+                    <i class="mdi mdi-shape-outline"></i>
                     <span> Loại sản phẩm</span>
                     <span class="menu-arrow"></span>
                 </a>
@@ -56,7 +57,7 @@ $role = $session->get('role');
 
             <li>
                 <a href="javascript: void(0);">
-                    <i class="mdi mdi-cube-outline"></i>
+                    <i class="mdi mdi-cart-outline"></i>
                     <span> Đơn hàng</span>
                     <span class="menu-arrow"></span>
                 </a>
@@ -65,9 +66,32 @@ $role = $session->get('role');
                     <li><a href="#">Thêm mới</a></li>
                 </ul>
             </li>
+
             <li>
                 <a href="javascript: void(0);">
-                    <i class="mdi mdi-format-list-bulleted-type"></i>
+                    <i class="mdi mdi-file-export-outline"></i>
+                    <span> Phiếu xuất kho</span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li><a href="<?= base_url('/invoices') ?>">Danh sách</a></li>
+                    <li><a href="<?= base_url('/invoices/cart') ?>">DS tạo phiếu</a></li>
+                    <li><a href="#">Thêm mới</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript: void(0);">
+                    <i class="mdi mdi-chart-bar "></i>
+                    <span> Thống kê</span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li><a href="<?= base_url() ?>accounting-statistics">Công nợ</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript: void(0);">
+                    <i class="mdi mdi-settings-outline"></i>
                     <span> Cài đặt</span>
                     <span class="menu-arrow"></span>
                 </a>
@@ -76,7 +100,8 @@ $role = $session->get('role');
                     <li><a href="<?= base_url('/exchange-rates') ?>">Lịch sự cập nhật</a></li>
                 </ul>
             </li>
-            <li><a href="<?= base_url('/profile') ?>"><i class="ti-user"></i> <span> Profile </span></a></li>
+            <li><a href="<?= base_url('/profile') ?>"><i class="mdi mdi-account-circle-outline"></i> <span> Profile </span></a></li>
+            <li><a href="<?= base_url('/tracking') ?>" target="_blank"><i class="mdi mdi-package-variant"></i> Tra mã vận đơn</a></li>
         </ul>
     </div>
 </div>

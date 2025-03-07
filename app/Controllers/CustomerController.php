@@ -3,19 +3,31 @@
 namespace App\Controllers;
 
 use App\Models\CustomerModel;
+use App\Models\CustomerTransactionModel;
+use App\Models\InvoiceModel; // Thêm model cho invoices nếu cần
+use App\Models\OrderModel;
 
 class CustomerController extends BaseController
 {
     protected $customerModel;
+    protected $customerTransactionModel;
+    protected $invoiceModel;
+    protected $orderModel;
 
     public function __construct()
     {
         $this->customerModel = new CustomerModel();
+        $this->customerTransactionModel = new CustomerTransactionModel();
+        $this->invoiceModel = new InvoiceModel(); // Khởi tạo nếu cần
+        $this->orderModel = new OrderModel();     // Khởi tạo nếu cần
     }
 
     public function index()
     {
-        $data['customers'] = $this->customerModel->orderBy('id', 'DESC')->findAll();
+        // Sử dụng phương thức tùy chỉnh để lấy danh sách khách hàng kèm số đơn hàng
+        $data['customers'] = $this->customerModel->getCustomersWithOrderCount();
+
+        // Truyền dữ liệu sang view
         return view('customers/index', $data);
     }
 
@@ -99,6 +111,7 @@ class CustomerController extends BaseController
             }
         }
 
+        //echo "Lỗi";
         return view('customers/create');
     }
 
@@ -194,5 +207,63 @@ class CustomerController extends BaseController
         }
 
         return redirect()->to('/customers')->with('error', 'Không có dữ liệu để cập nhật.');
+    }
+
+    public function detail($id)
+    {
+        $customer = $this->customerModel->find($id);
+        if (!$customer) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException("Khách hàng không tồn tại.");
+        }
+
+        $balance = $this->customerModel->getCustomerBalance($id);
+        $orderStats = $this->orderModel->getOrderStatsByCustomer($id);
+        $recentInvoices = $this->invoiceModel->getRecentInvoicesByCustomer($id, 10);
+
+        // Tính toán động total_amount cho mỗi invoice
+        foreach ($recentInvoices as &$invoice) {
+            $invoice['dynamic_total'] = $this->invoiceModel->calculateDynamicTotal($invoice['id']);
+        }
+
+        $transactions = $this->customerTransactionModel->getCustomerTransactions($id);
+
+        $data = [
+            'customer' => $customer,
+            'balance' => $balance,
+            'orderStats' => $orderStats,
+            'recentInvoices' => $recentInvoices,
+            'transactions' => $transactions,
+        ];
+
+        return view('customers/detail', $data);
+    }
+
+    public function deposit($id)
+    {
+        if ($this->request->getMethod() === 'POST') {
+            $rules = [
+                'amount' => 'required|numeric|greater_than[0]',
+                'notes' => 'permit_empty|max_length[255]',
+            ];
+
+            if (!$this->validate($rules)) {
+                return redirect()->back()->with('errors', $this->validator->getErrors());
+            }
+
+            $data = [
+                'customer_id' => $id,
+                'transaction_type' => 'deposit',
+                'amount' => $this->request->getPost('amount'),
+                'created_by' => session()->get('user_id') ?? 1, // Điều chỉnh nếu cần, mặc định là 1 nếu không có session
+                'notes' => $this->request->getPost('notes'),
+            ];
+
+            if ($this->customerTransactionModel->addTransaction($data)) {
+                cache()->delete("customer_balance_{$id}");
+                return redirect()->to("/customers/detail/{$id}")->with('success', 'Nạp tiền thành công.');
+            } else {
+                return redirect()->back()->with('error', 'Nạp tiền thất bại.');
+            }
+        }
     }
 }

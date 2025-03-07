@@ -8,6 +8,8 @@ use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use Psr\Log\LoggerInterface;
+use App\Models\ExchangeRateModel;
+use Config\Services;
 
 /**
  * Class BaseController
@@ -21,6 +23,10 @@ use Psr\Log\LoggerInterface;
  */
 abstract class BaseController extends Controller
 {
+
+    protected $exchangeRate;
+
+    public function __construct() {}
     /**
      * Instance of the main Request object.
      *
@@ -51,8 +57,11 @@ abstract class BaseController extends Controller
         // Do Not Edit This Line
         parent::initController($request, $response, $logger);
 
-        // Preload any models, libraries, etc, here.
+        $exchangeRateModel = new ExchangeRateModel();
+        $latestRate = $exchangeRateModel->orderBy('updated_at', 'DESC')->first();
 
-        // E.g.: $this->session = \Config\Services::session();
+        // Chia sẻ với tất cả các view
+        $this->exchangeRate = $latestRate ? $latestRate['rate'] : 'N/A';
+        Services::renderer()->setData(['exchangeRate' => $this->exchangeRate]);
     }
 }
