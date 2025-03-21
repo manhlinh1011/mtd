@@ -25,12 +25,14 @@ class TrackingController extends Controller
         $invoiceModel = new InvoiceModel();
 
         // Lấy thông tin đơn hàng theo mã tracking_code
-        $order = $orderModel->where('tracking_code', $trackingCode)->first();
+        $order = $orderModel->like('tracking_code', $trackingCode, 'after')->first();
+
 
         if (!$order) {
             return view('tracking', ['error' => 'Không tìm thấy đơn hàng với mã này']);
         }
 
+        $trackingCode = $order['tracking_code'];
         // Lịch sử trạng thái đơn hàng (luôn theo thứ tự cố định)
         $statusHistory = [];
 

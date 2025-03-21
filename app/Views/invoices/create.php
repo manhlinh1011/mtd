@@ -95,7 +95,10 @@
                                 <label for="other_fee">Phí khác (VNĐ)</label>
                                 <input type="number" class="form-control" id="other_fee" name="other_fee" value="0" min="0" required>
                             </div>
-
+                            <div class="form-group">
+                                <label for="notes">Ghi chú:</label>
+                                <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Nhập ghi chú nếu có"></textarea>
+                            </div>
                             <!-- Tổng cộng -->
                             <div class="mt-3">
                                 <h5><strong>Tổng tiền:</strong> <span id="total_price"><?= number_format($total, 0, ',', '.') ?></span> VNĐ</h5>

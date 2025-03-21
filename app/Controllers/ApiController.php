@@ -125,4 +125,74 @@ class ApiController extends ResourceController
         }
         return $this->response->setStatusCode(200)->setBody('0');
     }
+
+    /**
+     * API: Kiểm tra xem đơn hàng đã về Việt Nam hay chưa
+     */
+    public function checkVietnamStockStatus()
+    {
+        $trackingCode = $this->request->getGet('tracking_code');
+
+        if (empty($trackingCode)) {
+            return $this->response->setStatusCode(400)->setBody('0');
+        }
+
+        $order = $this->orderModel->where('tracking_code', $trackingCode)->first();
+
+        if (!$order) {
+            return $this->response->setStatusCode(404)->setBody('0');
+        }
+
+        // Nếu vietnam_stock_date là null thì trả về 0, ngược lại trả về 1
+        $status = is_null($order['vietnam_stock_date']) ? '0' : '1';
+        return $this->response->setStatusCode(200)->setBody($status);
+    }
+
+    public function updateVietnamStockDate()
+    {
+        try {
+            // Nhận dữ liệu JSON từ body request
+            $data = $this->request->getJSON(true);
+
+            if (!$data || empty($data['tracking_code'])) {
+                return $this->respond([
+                    'status' => 400,
+                    'message' => 'Dữ liệu không hợp lệ',
+                    'error' => 'Yêu cầu tracking_code'
+                ], 400);
+            }
+
+            $trackingCode = $data['tracking_code'];
+            $order = $this->orderModel->where('tracking_code', $trackingCode)->first();
+
+            if (!$order) {
+                return $this->respond([
+                    'status' => 404,
+                    'message' => 'Không tìm thấy đơn hàng',
+                    'error' => 'Tracking code không tồn tại'
+                ], 404);
+            }
+
+            // Cập nhật vietnam_stock_date với thời gian hiện tại
+            $currentTime = date('Y-m-d H:i:s');
+            $this->orderModel->update($order['id'], [
+                'vietnam_stock_date' => $currentTime
+            ]);
+
+            return $this->respond([
+                'status' => 200,
+                'message' => 'Cập nhật ngày nhập kho Việt Nam thành công',
+                'data' => [
+                    'tracking_code' => $trackingCode,
+                    'vietnam_stock_date' => $currentTime
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return $this->respond([
+                'status' => 500,
+                'message' => 'Lỗi trong quá trình cập nhật',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

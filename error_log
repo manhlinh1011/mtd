@@ -1,0 +1,7 @@
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  PHP Startup: Unable to load dynamic library 'json.so' (tried: /opt/alt/php81/usr/lib64/php/modules/json.so (/opt/alt/php81/usr/lib64/php/modules/json.so: cannot open shared object file: No such file or directory), /opt/alt/php81/usr/lib64/php/modules/json.so.so (/opt/alt/php81/usr/lib64/php/modules/json.so.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "dom" is already loaded in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "gd" is already loaded in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "mbstring" is already loaded in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "mysqli" is already loaded in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "PDO" is already loaded in Unknown on line 0
+[13-Mar-2025 04:30:16 UTC] PHP Warning:  Module "pdo_mysql" is already loaded in Unknown on line 0

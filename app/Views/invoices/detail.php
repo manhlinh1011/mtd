@@ -38,10 +38,12 @@
                     <?php endif; ?>
                     Tổng số tiền cần thanh toán: <?= number_format($total_amount, 0, ',', '.') ?>đ<br>
                 </p>
-                <p><strong>Người tạo:</strong> <?= $creator['fullname'] ?? 'Không rõ' ?></p>
-                <?php if ($invoice['approved_by']): ?>
-                    <p><strong>Người duyệt:</strong> <?= $approver['fullname'] ?? 'Không rõ' ?> vào lúc <?= $invoice['approved_at'] ?></p>
-                <?php endif; ?>
+                <p><strong>Người tạo:</strong> <?= $creator['fullname'] ?? 'Không rõ' ?><br />
+                    <?php if ($invoice['shipping_confirmed_by']): ?>
+                        <strong>Xác nhận giao:</strong> <?= $shipping_confirmed_by['fullname'] ?? 'Không rõ' ?> <br />
+                        Thời gian: <?= $invoice['shipping_confirmed_at'] ? date('H:i d/m/Y', strtotime($invoice['shipping_confirmed_at'])) : 'Chưa xác định' ?>
+                    <?php endif; ?>
+                </p>
             </div>
             <div class="col-6 text-right">
                 <?= $invoice['created_at'] ?><br>
@@ -69,10 +71,19 @@
                     <th>Phí nội địa</th>
                     <th>Tính theo</th>
                     <th>Tổng giá</th>
+                    <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                        <th class="d-print-none">Hành động</th>
+                    <?php endif; ?>
                 </tr>
             </thead>
             <tbody>
-                <?php $total = 0; ?>
+                <?php
+                $total = 0;
+                $totalWeight = 0;
+                $totalVolume = 0;
+                $totalQuantity = 0; // Thêm biến tổng số lượng
+                $totalDomesticFee = 0; // Thêm biến tổng phí nội địa
+                ?>
                 <?php foreach ($orders as $index => $order): ?>
                     <?php
                     $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
@@ -80,6 +91,11 @@
                     $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
                     $total += $finalPrice;
                     $priceMethod = ($priceByWeight >= $priceByVolume) ? "Cân nặng" : "Thể tích";
+                    // Tính tổng các giá trị
+                    $totalWeight += $order['total_weight'];
+                    $totalVolume += $order['volume'];
+                    $totalQuantity += $order['quantity']; // Cộng dồn số lượng
+                    $totalDomesticFee += $order['domestic_fee']; // Cộng dồn phí nội địa
                     ?>
                     <tr>
                         <td class="text-center"><?= $index + 1 ?></td>
@@ -95,31 +111,62 @@
                         <td class="text-center"><?= number_format($order['domestic_fee'], 2, '.', ',') ?></td>
                         <td class="text-center"><?= $priceMethod ?></td>
                         <td class="text-center"><?= number_format($finalPrice, 0, ',', '.') ?> đ</td>
+                        <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                            <td class="text-center d-print-none">
+                                <button class="btn btn-sm btn-warning reassign-order-btn" data-order-id="<?= $order['id'] ?>" data-toggle="modal" data-target="#reassignOrderModal">
+                                    <i class="mdi mdi-account-switch mr-1"></i> Chuyển
+                                </button>
+                            </td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="12">Tiền vận chuyển</th>
+                    <th colspan="4">Tổng</th>
+                    <th><?= number_format($totalQuantity, 0, ',', '.') ?></th>
+                    <th><?= number_format($totalWeight, 2, ',', '.') ?></th>
+                    <th></th>
+                    <th><?= number_format($totalVolume, 3, ',', '.') ?></th>
+                    <th colspan="2"></th>
+                    <th><?= number_format($totalDomesticFee, 2, '.', ',') ?></th>
+                    <th></th>
                     <th><?= number_format($total, 0, ',', '.') ?> đ</th>
+                    <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                        <th class="d-print-none"></th>
+                    <?php endif; ?>
                 </tr>
                 <tr>
                     <th colspan="12">Phí giao hàng</th>
                     <th><?= number_format($invoice['shipping_fee'], 0, ',', '.') ?> đ</th>
+                    <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                        <th class="d-print-none"></th>
+                    <?php endif; ?>
                 </tr>
                 <tr>
                     <th colspan="12">Phí khác</th>
                     <th><?= number_format($invoice['other_fee'], 0, ',', '.') ?> đ</th>
+                    <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                        <th class="d-print-none"></th>
+                    <?php endif; ?>
                 </tr>
                 <tr>
                     <th colspan="12">Tổng cộng</th>
                     <th><?= number_format($total + $invoice['shipping_fee'] + $invoice['other_fee'], 0, ',', '.') ?> đ</th>
+                    <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                        <th class="d-print-none"></th>
+                    <?php endif; ?>
                 </tr>
             </tfoot>
         </table>
     </div>
 
     <div class="row" style="margin-top: 50px;">
+        <div class="col-12">
+            <?php if (!empty($invoice['notes'])): ?>
+                <strong>Ghi chú:</strong> <?= esc($invoice['notes']) ?><br>
+            <?php endif; ?>
+        </div>
         <div class="col-6 text-center d-none d-print-block">
             <strong>Người lập phiếu</strong>
         </div>
@@ -129,25 +176,44 @@
         </div>
     </div>
 
-    <!-- Nút điều khiển -->
-    <div class="mt-4 text-right d-print-none">
-        <a href="javascript:window.print()" class="btn btn-primary">In Phiếu</a>
+    <div class="fixed-bottom content-page">
+        <div class="row ml-1">
+            <div class="col-12" style="background-color: #f4f4f4;">
+                <div class="mt-3 mb-3 text-center d-print-none">
+                    <a href="javascript:window.print()" class="btn btn-primary">
+                        <i class="mdi mdi-printer mr-1"></i> In Phiếu
+                    </a>
 
-        <?php if (in_array(session('role'), ['Nhân viên', 'Quản lý']) && $invoice['shipping_status'] !== 'confirmed'): ?>
-            <a href="/invoices/confirmShipping/<?= $invoice['id'] ?>" class="btn btn-success">Xác nhận đã giao</a>
-        <?php endif; ?>
+                    <?php if (in_array(session('role'), ['Nhân viên', 'Quản lý']) && $invoice['shipping_status'] !== 'confirmed'): ?>
+                        <a href="/invoices/confirmShipping/<?= $invoice['id'] ?>" class="btn btn-success">
+                            <i class="mdi mdi-truck-check mr-1"></i> Xác nhận đã giao
+                        </a>
+                    <?php endif; ?>
 
-        <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['payment_status'] === 'unpaid'): ?>
-            <button id="payButton" class="btn btn-success" data-invoice-id="<?= $invoice['id'] ?>">Xác nhận thanh toán</button>
-        <?php endif; ?>
+                    <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['payment_status'] === 'unpaid'): ?>
+                        <button id="payButton" class="btn btn-success" data-invoice-id="<?= $invoice['id'] ?>">
+                            <i class="mdi mdi-cash mr-1"></i> Xác nhận thanh toán
+                        </button>
+                    <?php endif; ?>
 
-        <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['payment_status'] === 'unpaid'): ?>
-            <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editShippingFeeModal">Sửa phí giao hàng</button>
-            <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editOtherFeeModal">Sửa phí khác</button>
-            <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editBulkPriceModal">Sửa giá</button> <!-- Nút mới -->
-        <?php endif; ?>
+                    <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['payment_status'] === 'unpaid'): ?>
+                        <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editShippingFeeModal">
+                            <i class="mdi mdi-truck-delivery mr-1"></i> Sửa phí giao hàng
+                        </button>
+                        <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editOtherFeeModal">
+                            <i class="mdi mdi-currency-usd mr-1"></i> Sửa phí khác
+                        </button>
+                        <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#editBulkPriceModal">
+                            <i class="mdi mdi-table-edit mr-1"></i> Sửa giá
+                        </button>
+                    <?php endif; ?>
 
-        <a href="/invoices" class="btn btn-secondary">Quay Lại</a>
+                    <a href="/invoices" class="btn btn-secondary">
+                        <i class="mdi mdi-arrow-left mr-1"></i> Quay Lại
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Sửa phí giao hàng -->
@@ -199,6 +265,26 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
                     <button type="button" class="btn btn-primary" id="saveOtherFeeBtn">Cập nhật</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cảnh báo giao hàng chưa xác nhận -->
+    <div class="modal fade" id="shippingNotConfirmedModal" tabindex="-1" role="dialog" aria-labelledby="shippingNotConfirmedModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shippingNotConfirmedModalLabel">Cảnh báo</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="shippingNotConfirmedMessage">
+                    Phiếu xuất phải được xác nhận giao hàng trước khi thanh toán.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
                 </div>
             </div>
         </div>
@@ -359,7 +445,43 @@
         </div>
     </div>
 
+    <!-- Modal Chuyển khách hàng -->
+    <div class="modal fade" id="reassignOrderModal" tabindex="-1" role="dialog" aria-labelledby="reassignOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reassignOrderModalLabel">Chuyển đơn hàng sang khách hàng khác</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="reassignOrderForm">
+                        <div class="form-group">
+                            <label for="newCustomerId">Chọn khách hàng mới:</label>
+                            <select class="form-control" id="newCustomerId" name="new_customer_id" required>
+                                <option value="">-- Chọn khách hàng --</option>
+                                <?php foreach ($customers as $customer): ?>
+                                    <option value="<?= $customer['id'] ?>"><?= $customer['customer_code'] ?> - <?= $customer['fullname'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <input type="hidden" name="order_id" id="orderId">
+                        <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" id="confirmReassignBtn">Xác nhận</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
+
+
+
 
 <?= $this->endSection() ?>
 
@@ -376,7 +498,11 @@
                     // Hiển thị modal thành công
                     showSuccessModal(response.message, response.total_paid, response.new_balance, response.customer_detail_link);
                 } else {
-                    if (response.modal_type === 'insufficient_balance') {
+                    if (response.modal_type === 'shipping_not_confirmed') {
+                        // Hiển thị modal cảnh báo giao hàng chưa xác nhận
+                        $('#shippingNotConfirmedMessage').text(response.message);
+                        $('#shippingNotConfirmedModal').modal('show');
+                    } else if (response.modal_type === 'insufficient_balance') {
                         // Hiển thị modal không đủ số dư
                         $('#currentBalance').text(response.current_balance);
                         $('#insufficientBalanceModal').modal('show');
@@ -521,6 +647,41 @@
         $('.fee-input').on('input', function() {
             let value = $(this).val().replace(/[^0-9.,]/g, ''); // Cho phép số, dấu chấm, dấu phẩy
             $(this).val(value);
+        });
+
+
+        // Gắn sự kiện click cho nút "Loại bỏ và Chuyển khách hàng"
+        $('.reassign-order-btn').on('click', function() {
+            const orderId = $(this).data('order-id');
+            $('#orderId').val(orderId);
+        });
+
+        // Xử lý nút "Xác nhận" trong modal chuyển khách hàng
+        $('#confirmReassignBtn').on('click', function() {
+            const orderId = $('#orderId').val();
+            $.ajax({
+                url: '<?= base_url("invoices/reassignOrder/") ?>' + orderId,
+                type: 'POST',
+                data: $('#reassignOrderForm').serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        $('#reassignOrderModal').modal('hide');
+                        // Thay thế \n bằng <br> để hiển thị xuống dòng
+                        $('#updateSuccessMessage').html(response.message.replace(/\n/g, '<br>'));
+                        $('#updateSuccessModal').modal('show');
+                        $('#updateSuccessModal').on('hidden.bs.modal', function() {
+                            location.reload(); // Tải lại trang sau khi đóng modal
+                        });
+                    } else {
+                        $('#updateSuccessMessage').text(response.message);
+                        $('#updateSuccessModal').modal('show');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $('#updateSuccessMessage').text('Có lỗi xảy ra. Vui lòng thử lại.');
+                    $('#updateSuccessModal').modal('show');
+                }
+            });
         });
     });
 

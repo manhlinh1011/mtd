@@ -1,6 +1,19 @@
 <IfModule authz_core_module>
-	Require all denied
+    Require all denied
 </IfModule>
 <IfModule !authz_core_module>
-	Deny from all
+    Deny from all
 </IfModule>
+
+# Cho phép truy cập vào thư mục uploads (nếu cần chỉ cho phép file cụ thể như hình ảnh)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^uploads/ - [L]
+</IfModule>
+
+# Hoặc cấu hình trực tiếp cho phép truy cập vào uploads
+<Directory "writable/uploads">
+    Options -Indexes +FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>

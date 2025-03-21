@@ -1,2 +1,7 @@
 [03-Dec-2024 14:55:33 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home/malivn/mtd.mali.vn/app/Controllers/Home.php on line 5
 [03-Dec-2024 14:55:36 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home/malivn/mtd.mali.vn/app/Controllers/Home.php on line 5
+[05-Dec-2024 04:46:35 UTC] PHP Parse error:  syntax error, unexpected identifier "defined" in /home/malivn/mtd.mali.vn/app/Config/Boot/development.php on line 25
+[05-Dec-2024 04:46:46 UTC] PHP Parse error:  syntax error, unexpected identifier "defined" in /home/malivn/mtd.mali.vn/app/Config/Boot/development.php on line 25
+[25-Dec-2024 23:23:46 UTC] PHP Fatal error:  Cannot use isset() on the result of an expression (you can use "null !== expression" instead) in /home/malivn/mtd.mali.vn/app/Views/partials/header.php on line 16
+[26-Dec-2024 05:53:44 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home/malivn/mtd.mali.vn/app/Controllers/OrderController.php on line 6
+[17-Feb-2025 18:06:51 UTC] PHP Fatal error:  Cannot redeclare timeAgo() (previously declared in /home/malivn/mtd.mali.vn/app/Views/dashboard/index.php:73) in /home/malivn/mtd.mali.vn/app/Views/dashboard/index.php on line 73

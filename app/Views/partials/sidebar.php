@@ -87,6 +87,7 @@ $role = $session->get('role');
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li><a href="<?= base_url() ?>accounting-statistics">Công nợ</a></li>
+                    <li><a href="<?= base_url() ?>packages">Quản lý bao hàng</a></li>
                 </ul>
             </li>
             <li>

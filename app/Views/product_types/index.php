@@ -13,6 +13,7 @@
                             <table id="datatable" class="table table-striped table-bordered">
                                 <thead>
                                     <tr>
+                                        <th class="text-center">STT</th>
                                         <th class="text-center">ID</th>
                                         <th>Tên Loại Hàng</th>
                                         <th>Mô Tả</th>
@@ -25,6 +26,7 @@
                                     <?php foreach ($product_types as $type): ?>
                                         <tr>
                                             <td class="text-center"><?= $index++ ?></td>
+                                            <td class="text-center"><?= $type['id'] ?></td>
                                             <td class="text-center"><?= $type['name'] ?></td>
                                             <td><?= $type['description'] ?></td>
                                             <td class="text-center"><?= $type['total_orders'] ?></td>

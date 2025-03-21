@@ -21,12 +21,20 @@
     <link href="<?= base_url('assets/libs/datatables/select.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/4.1.5/css/flag-icons.min.css">
+    <!-- Thêm jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         a,
         p,
         b,
-        strong {
+        strong,
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        label {
             font-family: 'Arial', sans-serif !important;
         }
     </style>
@@ -43,7 +51,6 @@
                 <div class="toast align-items-center text-bg-${type} border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${message}</div>
-                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                     </div>
                 </div>
             `;

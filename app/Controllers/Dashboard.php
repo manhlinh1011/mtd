@@ -13,6 +13,7 @@ class Dashboard extends BaseController
     protected $orderModel;
     protected $productTypeModel;
     protected $invoiceModel;
+    protected $db;
 
     public function __construct()
     {
@@ -20,10 +21,80 @@ class Dashboard extends BaseController
         $this->orderModel = new OrderModel();
         $this->productTypeModel = new ProductTypeModel();
         $this->invoiceModel = new InvoiceModel();
+        $this->db = \Config\Database::connect();
     }
 
     public function index()
     {
+        // Thống kê đơn hàng hôm nay
+        $today = date('Y-m-d');
+        $data['todayStats'] = [
+            'china_import' => $this->orderModel
+                ->where('DATE(created_at)', $today)
+                ->where('vietnam_stock_date IS NULL')
+                ->countAllResults(),
+            'vietnam_import' => $this->orderModel
+                ->where('DATE(vietnam_stock_date)', $today)
+                ->countAllResults(),
+            'in_stock' => $this->orderModel
+                ->where('invoice_id IS NULL')
+                ->countAllResults(),
+            'exported' => $this->orderModel
+                ->join('invoices i', 'i.id = orders.invoice_id')
+                ->where('DATE(i.created_at)', $today)
+                ->countAllResults()
+        ];
+
+        // Thống kê số bao và số lô hôm nay
+        $data['packageStats'] = $this->orderModel->getPackageAndBatchStats($today);
+
+        // Thống kê giao dịch hôm nay
+        $data['transactionStats'] = [
+            'deposit_count' => $this->db->table('customer_transactions')
+                ->where('transaction_type', 'deposit')
+                ->where('DATE(created_at)', $today)
+                ->countAllResults(),
+            'payment_count' => $this->db->table('invoice_payments')
+                ->where('DATE(payment_date)', $today)
+                ->countAllResults(),
+            'deposit_amount' => $this->db->table('customer_transactions')
+                ->selectSum('amount')
+                ->where('transaction_type', 'deposit')
+                ->where('DATE(created_at)', $today)
+                ->get()
+                ->getRow()
+                ->amount ?? 0,
+            'payment_amount' => $this->db->table('invoice_payments')
+                ->selectSum('amount')
+                ->where('DATE(payment_date)', $today)
+                ->get()
+                ->getRow()
+                ->amount ?? 0
+        ];
+
+        // Thống kê phiếu xuất hôm nay
+        $data['invoiceStats'] = [
+            'new' => $this->invoiceModel
+                ->where('DATE(created_at)', $today)
+                ->countAllResults(),
+            'shipped' => $this->invoiceModel
+                ->where('DATE(shipping_confirmed_at)', $today)
+                ->countAllResults(),
+            'total_orders' => $this->orderModel
+                ->join('invoices i', 'i.id = orders.invoice_id')
+                ->where('DATE(i.created_at)', $today)
+                ->countAllResults()
+        ];
+
+        // Đếm số phiếu xuất quá hạn 7 ngày
+        $data['totalOverdueInvoices'] = $this->invoiceModel
+            ->where('payment_status', 'unpaid')
+            ->where('created_at <=', date('Y-m-d', strtotime('-7 days')))
+            ->countAllResults();
+
+        // Gán vào invoiceStats để dùng chung
+        $data['invoiceStats']['overdue'] = $data['totalOverdueInvoices'];
+
         // Tổng quan số liệu
         $data['totalCustomers'] = $this->customerModel->countAll();
         $data['totalOrders'] = $this->orderModel->countAll();
@@ -35,20 +106,62 @@ class Dashboard extends BaseController
             ->where('MONTH(created_at)', date('m'))
             ->where('YEAR(created_at)', date('Y'))
             ->countAllResults();
+
+        // Lấy 5 phiếu xuất quá hạn gần đây nhất
+        $data['recentOverdueInvoices'] = $this->db->table('invoices i')
+            ->select('
+                i.*,
+                c.fullname as customer_name,
+                c.customer_code,
+                c.id as customer_id,
+                DATEDIFF(CURDATE(), DATE(i.created_at)) as days_overdue
+            ')
+            ->join('customers c', 'c.id = i.customer_id', 'left')
+            ->where('i.payment_status', 'unpaid')
+            ->where('i.created_at <=', date('Y-m-d', strtotime('-7 days')))
+            ->orderBy('i.created_at', 'DESC')
+            ->limit(5)
+            ->get()
+            ->getResultArray();
+
+        // Tính total_amount cho mỗi phiếu xuất quá hạn
+        foreach ($data['recentOverdueInvoices'] as &$invoice) {
+            try {
+                $orders = $this->orderModel->where('invoice_id', $invoice['id'])->findAll();
+                $total = 0;
+                foreach ($orders as $order) {
+                    $totalWeight = floatval($order['total_weight'] ?? 0);
+                    $pricePerKg = floatval($order['price_per_kg'] ?? 0);
+                    $volume = floatval($order['volume'] ?? 0);
+                    $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
+                    $domesticFee = floatval($order['domestic_fee'] ?? 0);
+                    $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+
+                    $priceByWeight = $totalWeight * $pricePerKg;
+                    $priceByVolume = $volume * $pricePerCubicMeter;
+                    $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
+                    $total += $finalPrice;
+                }
+
+                $shippingFee = floatval($invoice['shipping_fee'] ?? 0);
+                $otherFee = floatval($invoice['other_fee'] ?? 0);
+                $invoice['total_amount'] = $total + $shippingFee + $otherFee;
+            } catch (\Exception $e) {
+                log_message('error', 'Error calculating total amount for invoice ' . $invoice['id'] . ': ' . $e->getMessage());
+                $invoice['total_amount'] = 0;
+            }
+        }
+
+        // Lấy danh sách đơn hàng gần đây
         $data['recentOrders'] = $this->orderModel
-            ->select("orders.id, orders.tracking_code, customers.fullname as customer_name, customers.customer_code as customer_code, orders.created_at, 
-        CASE 
-            WHEN orders.invoice_id IS NULL THEN 'in_stock'  -- Đơn tồn kho (chưa có invoice)
-            WHEN i.shipping_status = 'pending' THEN 'shipping'  -- Đơn đang giao
-            WHEN i.shipping_status = 'confirmed' THEN 'shipped'  -- Đơn đã giao
-            ELSE 'unknown'  -- Trường hợp khác
-        END AS order_status")
+            ->select("orders.*, orders.id, orders.tracking_code, orders.created_at, orders.vietnam_stock_date,
+                customers.fullname as customer_name, customers.customer_code as customer_code,
+                i.shipping_confirmed_at, i.id as invoice_id")
             ->join('customers', 'customers.id = orders.customer_id', 'left')
-            ->join('invoices i', 'i.id = orders.invoice_id', 'left') // Kết hợp với bảng invoices
+            ->join('invoices i', 'i.id = orders.invoice_id', 'left')
             ->orderBy('orders.created_at', 'DESC')
             ->limit(8)
             ->findAll();
-
 
         // Lấy danh sách 10 khách hàng đặt hàng nhiều nhất
         $data['topCustomers'] = $this->customerModel->getTopCustomers();
@@ -93,8 +206,6 @@ class Dashboard extends BaseController
         $data['productTypeLabels'] = $productTypeLabels;
         $data['productTypeValues'] = $productTypeValues;
 
-
-
         // Lấy tổng cân nặng mỗi ngày trong 30 ngày gần nhất từ bảng orders
         $weightData = $this->orderModel
             ->select("DATE(created_at) as order_date, COALESCE(SUM(total_weight), 0) as total_weight")
@@ -116,7 +227,6 @@ class Dashboard extends BaseController
         $data['weightLabels'] = json_encode($weightLabels);
         $data['weightValues'] = json_encode($weightValues);
 
-
         // Lấy phí giao hàng mỗi ngày trong 30 ngày gần nhất từ bảng invoices
         $shippingFeeData = $this->invoiceModel
             ->select("DATE(created_at) as invoice_date, COALESCE(SUM(shipping_fee), 0) as total_shipping_fee")
@@ -136,7 +246,6 @@ class Dashboard extends BaseController
 
         $data['shippingFeeLabels'] = json_encode($shippingFeeLabels);
         $data['shippingFeeValues'] = json_encode($shippingFeeValues);
-
 
         return view('dashboard/index', $data);
     }

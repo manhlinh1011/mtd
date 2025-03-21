@@ -13,7 +13,8 @@
             <?php if (session()->has('error')): ?>
                 <div class="alert alert-danger"><?= session('error') ?></div>
             <?php endif; ?>
-
+        </div>
+        <div class="col-6">
             <!-- Thông tin cơ bản -->
             <div class="card mb-4">
                 <div class="card-header">Thông tin cơ bản</div>
@@ -43,44 +44,56 @@
                             <th>Email</th>
                             <td><?= esc($customer['email']) ?: 'Không có' ?></td>
                         </tr>
-                        <tr>
-                            <th>Số dư</th>
-                            <td><?= number_format($balance, 0, ',', '.') ?> VNĐ</td>
-                        </tr>
                     </table>
                     <button class="btn btn-primary" data-toggle="modal" data-target="#depositModal">Nạp tiền</button>
                     <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning">Sửa thông tin</a>
                 </div>
             </div>
-
-            <!-- Thống kê đơn hàng -->
+        </div>
+        <div class="col-6">
+            <!-- Thống kê đơn hàng và phiếu xuất -->
             <div class="card mb-4">
-                <div class="card-header">Thống kê đơn hàng</div>
+                <div class="card-header">Thống kê</div>
                 <div class="card-body">
-                    <table class="table table-bordered">
-                        <tr>
-                            <th>Tổng số đơn hàng</th>
-                            <td><?= $orderStats['total_orders'] ?></td>
-                        </tr>
-                        <tr>
-                            <th>Số đơn tồn kho</th>
-                            <td><?= $orderStats['in_stock'] ?></td>
-                        </tr>
-                        <tr>
-                            <th>Số đơn đang xuất</th>
-                            <td><?= $orderStats['shipping'] ?></td>
-                        </tr>
-                        <tr>
-                            <th>Số đơn đã xuất</th>
-                            <td><?= $orderStats['shipped'] ?></td>
-                        </tr>
-                    </table>
+                    <h3 class="mt-1">Số dư: <strong class="text-success"><?= number_format($customer['balance'], 0, ',', '.') ?> VNĐ</strong></h3>
+                    <p>Ngày tạo: <strong><?= date('d/m/Y H:i', strtotime($customer['created_at'])) ?></strong></p>
+                    <hr />
+                    <div class="row">
+                        <!-- Cột trái: Thông tin đơn hàng -->
+                        <div class="col-6">
+                            <h6>Thông tin đơn hàng</h6>
+                            <p>
+                                Tổng số đơn hàng: <strong><?= $orderStats['total_orders'] ?></strong><br />
+                                Đơn hàng kho Trung Quốc: <strong><?= $orderStats['china_stock'] ?></strong><br />
+                                Đơn hàng tồn kho: <strong class="text-danger"><?= $orderStats['in_stock'] ?></strong><br />
+                                Đơn hàng chờ giao: <strong class="text-warning"><?= $orderStats['pending_shipping'] ?></strong><br />
+                                Đơn hàng đã giao: <strong class="text-success"><?= $orderStats['shipped'] ?></strong>
+                            </p>
+                        </div>
+                        <!-- Cột phải: Thông tin phiếu xuất -->
+                        <div class="col-6">
+                            <h6>Thông tin phiếu xuất</h6>
+                            <p>
+                                Tổng phiếu xuất: <strong><?= $invoiceStats['total_invoices'] ?></strong><br />
+                                Phiếu xuất đã thanh toán: <strong><?= $invoiceStats['paid_invoices'] ?></strong><br />
+                                Phiếu xuất chưa thanh toán: <strong class="text-danger"><?= $invoiceStats['unpaid_invoices'] ?></strong><br />
+                                Phiếu xuất chờ giao: <strong class="text-warning"><?= $invoiceStats['pending_invoices'] ?></strong><br />
+                                Phiếu xuất đã giao: <strong class="text-success"><?= $invoiceStats['delivered_invoices'] ?></strong>
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <!-- 10 phiếu thu gần nhất -->
+        </div>
+        <div class="col-12">
+            <!-- 10 phiếu xuất gần nhất -->
             <div class="card mb-4">
-                <div class="card-header">10 phiếu thu gần nhất</div>
+                <div class="card-header">
+                    <h3 class="card-title">10 phiếu xuất gần nhất</h3>
+                    <div class="card-tools">
+                        <a href="/customers/invoices/<?= $customer['id'] ?>" class="btn btn-primary btn-sm">Xem tất cả</a>
+                    </div>
+                </div>
                 <div class="card-body">
                     <table class="table table-striped table-bordered">
                         <thead>
@@ -98,15 +111,13 @@
                                 <tr>
                                     <td class="text-center"><a href="/invoices/detail/<?= $invoice['id'] ?>">#<?= $invoice['id'] ?></a></td>
                                     <td class="text-center"><?= date('d/m/Y H:i', strtotime($invoice['created_at'])) ?></td>
-                                    <td class="text-center"><?= number_format($invoice['dynamic_total'] ?? 0, 0, ',', '.') ?> VNĐ</td> <!-- Sử dụng dynamic_total -->
+                                    <td class="text-center"><?= number_format($invoice['dynamic_total'] ?? 0, 0, ',', '.') ?> VNĐ</td>
                                     <td class="text-center">
-                                        <!-- Trạng thái xuất hàng -->
                                         <span class="badge <?= $invoice['shipping_status'] == 'pending' ? 'bg-warning' : 'bg-success' ?>">
                                             <?= $invoice['shipping_status'] == 'pending' ? 'Chưa xuất' : 'Đã xuất' ?>
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <!-- Trạng thái thanh toán -->
                                         <span class="badge <?= $invoice['payment_status'] == 'unpaid' ? 'bg-danger' : 'bg-primary' ?>">
                                             <?= $invoice['payment_status'] == 'unpaid' ? 'Chưa thanh toán' : 'Đã thanh toán' ?>
                                         </span>
@@ -143,7 +154,7 @@
                                     <td class="text-center"><?= $transaction['transaction_type'] == 'deposit' ? 'Nạp tiền' : 'Thanh toán' ?></td>
                                     <td class="text-center"><?= number_format($transaction['amount'], 0, ',', '.') ?> VNĐ</td>
                                     <td class="text-center"><?= date('d/m/Y H:i', strtotime($transaction['created_at'])) ?></td>
-                                    <td class="text-center"><?= esc($transaction['employee_name'] ?? 'Không rõ') ?></td> <!-- Hiển thị tên nhân viên -->
+                                    <td class="text-center"><?= esc($transaction['employee_name'] ?? 'Không rõ') ?></td>
                                     <td class="text-center"><?= esc($transaction['notes']) ?: 'Không có' ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -164,7 +175,7 @@
                 <div class="modal-header">
                     <h5 class="modal-title" id="depositModalLabel">Nạp tiền cho khách hàng</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
+                        <span aria-hidden="true">×</span>
                     </button>
                 </div>
                 <div class="modal-body">

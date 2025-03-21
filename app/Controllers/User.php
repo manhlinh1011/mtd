@@ -190,17 +190,65 @@ class User extends BaseController
     }
 
 
-    // Xóa người dùng
-    public function delete($id)
+    public function delete($userId)
     {
-        $session = session();
-        if ($session->get('role') !== 'Quản lý') {
-            return redirect()->to('/login');
-        }
+        try {
+            if (!in_array(session('role'), ['Quản lý'])) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền xóa người dùng.'
+                ]);
+            }
 
-        $model = new UserModel();
-        $model->delete($id);
-        return redirect()->to('/user');
+            $userModel = new \App\Models\UserModel();
+            $systemLogModel = new \App\Models\SystemLogModel();
+
+            // Lấy thông tin người dùng trước khi xóa
+            $user = $userModel->find($userId);
+            if (!$user) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Người dùng không tồn tại.'
+                ]);
+            }
+
+            // Kiểm tra nếu người dùng đang được tham chiếu (ví dụ: không cho xóa nếu có giao dịch liên quan)
+            $transactionModel = new \App\Models\CustomerTransactionModel();
+            if ($transactionModel->where('created_by', $userId)->countAllResults() > 0) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể xóa người dùng vì đã có giao dịch liên quan.'
+                ]);
+            }
+
+            // Lưu thông tin người dùng trước khi xóa vào log
+            $details = json_encode([
+                'user_data' => $user
+            ]);
+
+            // Xóa người dùng
+            $userModel->delete($userId);
+
+            // Ghi log
+            $systemLogModel->addLog([
+                'entity_type' => 'user',
+                'entity_id' => $userId,
+                'action_type' => 'delete',
+                'created_by' => session()->get('user_id'),
+                'details' => $details,
+                'notes' => "Xóa người dùng #{$userId}."
+            ]);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Xóa người dùng thành công.'
+            ]);
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ]);
+        }
     }
 
     // Quản lý vai trò: Thêm, sửa, xóa vai trò

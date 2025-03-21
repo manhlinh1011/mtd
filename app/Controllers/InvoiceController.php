@@ -4,16 +4,20 @@ namespace App\Controllers;
 
 use App\Models\OrderModel;
 use App\Models\InvoiceModel;
+use App\Models\CustomerModel;
+use App\Models\CustomerTransactionModel;
+use App\Models\SystemLogModel;
 use App\Models\InvoiceOrderModel;
 use App\Models\InvoicePaymentModel;
 
 class InvoiceController extends BaseController
 {
-    protected $invoicePaymentModel;
+
+    protected $db;
 
     public function __construct()
     {
-        $this->invoicePaymentModel = new InvoicePaymentModel();
+        $this->db = \Config\Database::connect();
     }
 
     public function cart()
@@ -327,6 +331,7 @@ class InvoiceController extends BaseController
         $orderIds = explode(',', $this->request->getPost('order_ids'));
         $shippingFee = $this->request->getPost('shipping_fee');
         $otherFee = $this->request->getPost('other_fee');
+        $notes = $this->request->getPost('notes'); // Lấy ghi chú từ form
 
         // Lấy giỏ hàng từ session
         $cart = session()->get('cart') ?? [];
@@ -372,14 +377,15 @@ class InvoiceController extends BaseController
         }
         $totalAmount = $total + (float)$shippingFee + (float)$otherFee;
 
-        // Tạo invoice
+        // Tạo invoice với ghi chú
         $invoiceData = [
             'customer_id' => $customerId,
             'created_by' => session()->get('user_id'),
             'shipping_fee' => $shippingFee,
             'other_fee' => $otherFee,
             'total_amount' => $totalAmount,
-            'shipping_status' => 'pending'
+            'shipping_status' => 'pending',
+            'notes' => $notes // Thêm ghi chú vào dữ liệu invoice
         ];
         $invoiceModel = new \App\Models\InvoiceModel();
         $invoiceId = $invoiceModel->insert($invoiceData);
@@ -424,8 +430,11 @@ class InvoiceController extends BaseController
             ->where('orders.invoice_id', $invoiceId)
             ->findAll();
 
+        // Lấy danh sách khách hàng để hiển thị trong modal chuyển khách hàng
+        $customers = $customerModel->select('id, customer_code, fullname')->orderBy('customer_code', 'ASC')->findAll();
+
         $creator = $userModel->find($invoice['created_by']);
-        $approver = $invoice['approved_by'] ? $userModel->find($invoice['approved_by']) : null;
+        $shipping_confirmed_by = $userModel->find($invoice['shipping_confirmed_by']);
 
         $totalPaid = $paymentModel->getTotalPaidByInvoice($invoiceId);
 
@@ -456,11 +465,12 @@ class InvoiceController extends BaseController
             'customer' => $customer,
             'orders' => $orders,
             'creator' => $creator,
-            'approver' => $approver,
             'payment_status' => $paymentStatus,
             'total_paid' => $totalPaid,
             'total_amount' => $totalAmount,
-            'invoiceId' => $invoiceId
+            'invoiceId' => $invoiceId,
+            'shipping_confirmed_by' => $shipping_confirmed_by,
+            'customers' => $customers // Truyền danh sách khách hàng vào view
         ]);
     }
 
@@ -539,6 +549,12 @@ class InvoiceController extends BaseController
             return redirect()->back()->with('error', 'Mã vận đơn không tồn tại trong hệ thống.');
         }
 
+        // Kiểm tra nếu vietnam_stock_date là NULL
+        if (empty($order['vietnam_stock_date'])) {
+            $checkStockLink = base_url('/orders/vncheck');
+            return redirect()->back()->with('error', "Đơn hàng <strong>{$trackingCode}</strong> chưa được nhập kho Việt Nam. Vui lòng kiểm tra tại <a href='{$checkStockLink}'>đây</a>.");
+        }
+
         // Kiểm tra nếu đơn hàng đã được gán vào phiếu xuất nào chưa
         if (!empty($order['invoice_id'])) {
             $invoice = $invoiceModel->find($order['invoice_id']);
@@ -583,14 +599,13 @@ class InvoiceController extends BaseController
 
         // Chuẩn bị dữ liệu cập nhật
         $updateData = [
-            'shipping_status' => 'confirmed'
+            'shipping_status' => 'confirmed',
+            'shipping_confirmed_by' => session()->get('user_id'), // Gán ID người xác nhận
+            'shipping_confirmed_at' => date('Y-m-d H:i:s') // Gán thời gian xác nhận
         ];
 
         // Thực hiện cập nhật hóa đơn
         if ($invoiceModel->update($invoiceId, $updateData)) {
-            // Cập nhật trạng thái đơn hàng liên quan
-            $orderModel->where('invoice_id', $invoiceId)->set(['status' => 'shipped'])->update();
-
             return redirect()->to("/invoices/detail/{$invoiceId}")->with('success', 'Đã xác nhận giao hàng thành công.');
         } else {
             return redirect()->back()->with('error', 'Không thể xác nhận giao hàng. Vui lòng kiểm tra lại.');
@@ -618,6 +633,15 @@ class InvoiceController extends BaseController
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => 'Phiếu xuất không tồn tại.'
+                ]);
+            }
+
+            // Kiểm tra nếu giao hàng chưa được xác nhận
+            if ($invoice['shipping_status'] !== 'confirmed') {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Phiếu xuất phải được xác nhận giao hàng trước khi thanh toán.',
+                    'modal_type' => 'shipping_not_confirmed'
                 ]);
             }
 
@@ -662,12 +686,11 @@ class InvoiceController extends BaseController
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => 'Không đủ số dư. Vui lòng nạp thêm tiền.',
-                    'current_balance' => number_format($currentBalance, 2, ',', '.'),
-                    'required_amount' => number_format($totalAmount, 2, ',', '.'),
+                    'current_balance' => number_format($currentBalance, 0, ',', '.'),
+                    'required_amount' => number_format($totalAmount, 0, ',', '.'),
                     'modal_type' => 'insufficient_balance'
                 ]);
             }
-
 
             // Kiểm tra điều kiện 3: Phí giao hàng và phí khác là 0, kiểm tra confirm_zero_fees
             $confirmZeroFees = $this->request->getPost('confirm_zero_fees') === 'true';
@@ -722,15 +745,6 @@ class InvoiceController extends BaseController
         }
     }
 
-    // Xem danh sách thanh toán của hóa đơn
-    public function viewPayments($invoiceId)
-    {
-        $data['payments'] = $this->invoicePaymentModel->getPaymentsByInvoice($invoiceId);
-        $data['total_paid'] = $this->invoicePaymentModel->getTotalPaidByInvoice($invoiceId);
-        $data['invoice_id'] = $invoiceId;
-
-        return view('invoices/payments', $data);
-    }
 
     // Hiển thị form thêm thanh toán
     public function createPayment($invoiceId)
@@ -739,33 +753,6 @@ class InvoiceController extends BaseController
         return view('invoices/create_payment', $data);
     }
 
-    // Lưu thanh toán mới
-    public function storePayment($invoiceId)
-    {
-        $data = [
-            'invoice_id' => $invoiceId,
-            'amount' => $this->request->getPost('amount'),
-            'payment_date' => $this->request->getPost('payment_date'),
-            'payment_method' => $this->request->getPost('payment_method'),
-            'note' => $this->request->getPost('note')
-        ];
-
-        if ($this->invoicePaymentModel->save($data)) {
-            return redirect()->to("/invoices/payments/{$invoiceId}")->with('success', 'Thêm thanh toán thành công!');
-        } else {
-            return redirect()->back()->with('error', 'Không thể thêm thanh toán.');
-        }
-    }
-
-    // Xóa thanh toán
-    public function deletePayment($invoiceId, $paymentId)
-    {
-        if ($this->invoicePaymentModel->delete($paymentId)) {
-            return redirect()->to("/invoices/payments/{$invoiceId}")->with('success', 'Xóa thanh toán thành công!');
-        } else {
-            return redirect()->back()->with('error', 'Không thể xóa thanh toán.');
-        }
-    }
 
     public function updateShippingFee($invoiceId)
     {
@@ -996,6 +983,387 @@ class InvoiceController extends BaseController
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
             ]);
+        }
+    }
+
+    public function delete($invoiceId)
+    {
+        try {
+            if (!in_array(session('role'), ['Quản lý'])) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền xóa phiếu xuất.'
+                ]);
+            }
+
+            $invoiceModel = new \App\Models\InvoiceModel();
+            $orderModel = new \App\Models\OrderModel();
+            $systemLogModel = new \App\Models\SystemLogModel();
+
+            // Lấy thông tin phiếu xuất
+            $invoice = $invoiceModel->find($invoiceId);
+            if (!$invoice) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Phiếu xuất không tồn tại.'
+                ]);
+            }
+
+            // Kiểm tra trạng thái thanh toán
+            if ($invoice['payment_status'] === 'paid') {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể xóa phiếu xuất vì đã được thanh toán.'
+                ]);
+            }
+
+            // Lấy danh sách đơn hàng liên quan
+            $orders = $orderModel->where('invoice_id', $invoiceId)->findAll();
+
+            // Lưu thông tin phiếu xuất và đơn hàng liên quan vào log
+            $details = json_encode([
+                'invoice_data' => $invoice,
+                'related_orders' => $orders
+            ]);
+
+            // Đặt invoice_id của các đơn hàng về NULL
+            $orderModel->where('invoice_id', $invoiceId)->set(['invoice_id' => null])->update();
+
+            // Xóa phiếu xuất
+            $invoiceModel->delete($invoiceId);
+
+            // Ghi log
+            $systemLogModel->addLog([
+                'entity_type' => 'invoice',
+                'entity_id' => $invoiceId,
+                'action_type' => 'delete',
+                'created_by' => session()->get('user_id'),
+                'details' => $details,
+                'notes' => "Xóa phiếu xuất #{$invoiceId}."
+            ]);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Xóa phiếu xuất thành công.'
+            ]);
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function reassignOrder($orderId)
+    {
+        try {
+            if (!in_array(session('role'), ['Quản lý'])) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền thực hiện thao tác này.'
+                ]);
+            }
+
+            $orderModel = new \App\Models\OrderModel();
+            $invoiceModel = new \App\Models\InvoiceModel();
+            $customerModel = new \App\Models\CustomerModel();
+            $transactionModel = new \App\Models\CustomerTransactionModel();
+            $systemLogModel = new \App\Models\SystemLogModel();
+
+            // Lấy thông tin đơn hàng
+            $order = $orderModel->find($orderId);
+            log_message('info', 'Order found: ' . json_encode($order));
+            if (!$order) {
+                log_message('error', 'Order not found for orderId: ' . $orderId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Đơn hàng không tồn tại.'
+                ]);
+            }
+
+            $originalInvoiceId = $order['invoice_id'];
+            log_message('info', 'Original invoice ID: ' . $originalInvoiceId);
+            if (!$originalInvoiceId) {
+                log_message('error', 'Order has no invoice for orderId: ' . $orderId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Đơn hàng chưa thuộc phiếu xuất nào.'
+                ]);
+            }
+
+            $originalInvoice = $invoiceModel->find($originalInvoiceId);
+            log_message('info', 'Original invoice found: ' . json_encode($originalInvoice));
+            if (!$originalInvoice) {
+                log_message('error', 'Invoice not found for invoiceId: ' . $originalInvoiceId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Phiếu xuất gốc không tồn tại.'
+                ]);
+            }
+
+            $originalCustomerId = $originalInvoice['customer_id'];
+            $newCustomerId = $this->request->getPost('new_customer_id');
+            log_message('info', 'New customer ID: ' . $newCustomerId);
+            if (!$newCustomerId) {
+                log_message('error', 'No new customer ID provided for orderId: ' . $orderId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Vui lòng chọn khách hàng mới.'
+                ]);
+            }
+
+            $newCustomer = $customerModel->find($newCustomerId);
+            log_message('info', 'New customer found: ' . json_encode($newCustomer));
+            if (!$newCustomer) {
+                log_message('error', 'New customer not found for customerId: ' . $newCustomerId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Khách hàng mới không tồn tại.'
+                ]);
+            }
+
+            $originalCustomer = $customerModel->find($originalCustomerId);
+            if (!$originalCustomer) {
+                log_message('error', 'Original customer not found for customerId: ' . $originalCustomerId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể tìm thấy khách hàng gốc.'
+                ]);
+            }
+
+            // Bắt đầu transaction
+            $this->db->transBegin();
+            log_message('info', 'Transaction started for orderId: ' . $orderId);
+
+            // Tính giá trị của đơn hàng để hoàn tiền (nếu cần)
+            $priceByWeight = isset($order['total_weight']) && isset($order['price_per_kg']) ? $order['total_weight'] * $order['price_per_kg'] : 0;
+            $priceByVolume = isset($order['volume']) && isset($order['price_per_cubic_meter']) ? $order['volume'] * $order['price_per_cubic_meter'] : 0;
+            $domesticFee = isset($order['domestic_fee']) && isset($order['exchange_rate']) ? $order['domestic_fee'] * $order['exchange_rate'] : 0;
+            $finalPrice = max($priceByWeight, $priceByVolume) + $domesticFee;
+            $orderAmount = $finalPrice;
+            log_message('info', 'Order amount calculated: ' . $orderAmount);
+
+            // Xây dựng thông báo cơ bản
+            $message = "Đã loại bỏ đơn hàng #{$orderId} ({$order['tracking_code']}) khỏi phiếu xuất #{$originalInvoiceId}\n";
+
+            // Kiểm tra thay đổi khách hàng
+            if ($originalCustomerId == $newCustomerId) {
+                $message .= "Không thay đổi khách hàng\n";
+            } else {
+                $originalCustomerCode = $originalCustomer['customer_code'] ?? $originalCustomerId;
+                $newCustomerCode = $newCustomer['customer_code'] ?? $newCustomerId;
+                $message .= "Chuyển từ #{$originalCustomerId} ({$originalCustomerCode}) sang #{$newCustomerId} ({$newCustomerCode})\n";
+            }
+
+            // Kiểm tra trạng thái thanh toán
+            if ($originalInvoice['payment_status'] === 'paid') {
+                // Hoàn tiền cho khách hàng gốc
+                $newBalance = $originalCustomer['balance'] + $orderAmount;
+                $customerModel->update($originalCustomerId, ['balance' => $newBalance]);
+                log_message('info', 'Balance updated for original customer: ' . $newBalance);
+
+                // Ghi lịch sử giao dịch hoàn tiền
+                $transactionModel->addTransaction([
+                    'customer_id' => $originalCustomerId,
+                    'invoice_id' => $originalInvoiceId,
+                    'transaction_type' => 'deposit',
+                    'amount' => $orderAmount,
+                    'created_by' => session()->get('user_id'),
+                    'notes' => "Hoàn tiền do chuyển đơn hàng #{$orderId} khỏi phiếu xuất #{$originalInvoiceId}"
+                ]);
+                log_message('info', 'Transaction logged for refund');
+
+                // Cập nhật trạng thái thanh toán của phiếu xuất gốc
+                $remainingOrders = $orderModel->where('invoice_id', $originalInvoiceId)->where('id !=', $orderId)->findAll();
+                log_message('info', 'Remaining orders count: ' . count($remainingOrders));
+                if (empty($remainingOrders)) {
+                    $invoiceModel->update($originalInvoiceId, ['payment_status' => 'unpaid']);
+                    log_message('info', 'Payment status updated to unpaid for invoiceId: ' . $originalInvoiceId);
+                } else {
+                    $totalRemaining = 0;
+                    foreach ($remainingOrders as $remainingOrder) {
+                        $remainingPriceByWeight = isset($remainingOrder['total_weight']) && isset($remainingOrder['price_per_kg']) ? $remainingOrder['total_weight'] * $remainingOrder['price_per_kg'] : 0;
+                        $remainingPriceByVolume = isset($remainingOrder['volume']) && isset($remainingOrder['price_per_cubic_meter']) ? $remainingOrder['volume'] * $remainingOrder['price_per_cubic_meter'] : 0;
+                        $remainingDomesticFee = isset($remainingOrder['domestic_fee']) && isset($remainingOrder['exchange_rate']) ? $remainingOrder['domestic_fee'] * $remainingOrder['exchange_rate'] : 0;
+                        $remainingFinalPrice = max($remainingPriceByWeight, $remainingPriceByVolume) + $remainingDomesticFee;
+                        $totalRemaining += $remainingFinalPrice;
+                    }
+                    $totalAmountRemaining = $totalRemaining + (float)$originalInvoice['shipping_fee'] + (float)$originalInvoice['other_fee'];
+                    $totalPaid = (float)$transactionModel->where('invoice_id', $originalInvoiceId)->where('transaction_type', 'payment')->selectSum('amount')->first()['amount'];
+                    $newPaymentStatus = ($totalPaid >= $totalAmountRemaining && $totalAmountRemaining > 0) ? 'paid' : 'unpaid';
+                    $invoiceModel->update($originalInvoiceId, ['payment_status' => $newPaymentStatus]);
+                    log_message('info', 'Payment status updated to ' . $newPaymentStatus . ' for invoiceId: ' . $originalInvoiceId);
+                }
+
+                $message .= "Đã hoàn lại " . number_format($orderAmount, 0, ',', '.') . " đ\n";
+            } else {
+                $message .= "Số dư khách không ảnh hưởng\n";
+            }
+
+            // Loại bỏ đơn hàng khỏi phiếu xuất gốc
+            $orderModel->update($orderId, ['invoice_id' => null]);
+            log_message('info', 'Order removed from invoice for orderId: ' . $orderId);
+
+            // Cập nhật khách hàng mới cho đơn hàng
+            $orderModel->update($orderId, ['customer_id' => $newCustomerId]);
+            log_message('info', 'Customer updated to ' . $newCustomerId . ' for orderId: ' . $orderId);
+
+            // Ghi log hệ thống
+            $details = json_encode([
+                'order_id' => $orderId,
+                'tracking_code' => $order['tracking_code'],
+                'original_invoice_id' => $originalInvoiceId,
+                'original_customer_id' => $originalCustomerId,
+                'new_customer_id' => $newCustomerId,
+                'amount_affected' => $orderAmount,
+                'original_payment_status' => $originalInvoice['payment_status'],
+                'new_payment_status' => $newPaymentStatus ?? 'unpaid'
+            ]);
+            $systemLogModel->addLog([
+                'entity_type' => 'order',
+                'entity_id' => $orderId,
+                'action_type' => 'reassign',
+                'created_by' => session()->get('user_id'),
+                'details' => $details,
+                'notes' => "Loại bỏ và chuyển đơn hàng #{$orderId} ({$order['tracking_code']}) từ phiếu xuất #{$originalInvoiceId} (khách hàng #{$originalCustomerId}) sang khách hàng #{$newCustomerId}. Số tiền ảnh hưởng: " . number_format($orderAmount, 0, ',', '.') . " đ."
+            ]);
+            log_message('info', 'System log recorded for orderId: ' . $orderId);
+
+            // Hoàn tất transaction
+            if ($this->db->transStatus() === false) {
+                $this->db->transRollback();
+                log_message('error', 'Transaction failed for orderId: ' . $orderId);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể thực hiện thay đổi. Vui lòng thử lại.'
+                ]);
+            }
+
+            $this->db->transCommit();
+            log_message('info', 'Transaction committed for orderId: ' . $orderId);
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            $this->db->transRollback();
+            log_message('error', 'Exception caught: ' . $e->getMessage() . ' for orderId: ' . $orderId);
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function overdue()
+    {
+        try {
+            $page = $this->request->getGet('page') ?? 1;
+            $perPage = 30;
+            $days = $this->request->getGet('days') ?? 7;
+            $customerCode = $this->request->getGet('customer_code') ?? 'ALL';
+
+            // Khởi tạo model
+            $invoiceModel = new \App\Models\InvoiceModel();
+            $orderModel = new \App\Models\OrderModel();
+
+            // Xây dựng truy vấn chính
+            $builder = $this->db->table('invoices i')
+                ->select('
+                    i.*,
+                    c.fullname as customer_name,
+                    c.customer_code,
+                    c.id as customer_id,
+                    DATEDIFF(CURDATE(), DATE(i.created_at)) as days_overdue
+                ')
+                ->join('customers c', 'c.id = i.customer_id', 'left')
+                ->where('i.payment_status', 'unpaid')
+                ->where('DATEDIFF(CURDATE(), DATE(i.created_at)) >=', $days);
+
+            // Thêm điều kiện lọc theo khách hàng
+            if (!empty($customerCode) && $customerCode !== 'ALL') {
+                $builder->where('c.customer_code', $customerCode);
+            }
+
+            // Lấy tổng số phiếu xuất chưa thanh toán (không phụ thuộc vào điều kiện ngày)
+            $totalBuilder = $this->db->table('invoices i')
+                ->where('i.payment_status', 'unpaid');
+            if (!empty($customerCode) && $customerCode !== 'ALL') {
+                $totalBuilder->join('customers c', 'c.id = i.customer_id')
+                    ->where('c.customer_code', $customerCode);
+            }
+            $totalInvoices = $totalBuilder->countAllResults();
+
+            // Lấy tổng số phiếu xuất quá hạn
+            $countBuilder = clone $builder;
+            $total = $countBuilder->countAllResults();
+
+            // Thêm sắp xếp và phân trang
+            $builder->orderBy('days_overdue', 'DESC')
+                ->limit($perPage, ($page - 1) * $perPage);
+
+            $invoices = $builder->get()->getResultArray();
+
+            // Tính total_amount cho mỗi invoice
+            foreach ($invoices as &$invoice) {
+                try {
+                    // Lấy danh sách đơn hàng của phiếu xuất
+                    $orders = $orderModel->where('invoice_id', $invoice['id'])->findAll();
+
+                    // Tính tổng tiền từ các đơn hàng
+                    $total_amount = 0;
+                    foreach ($orders as $order) {
+                        $totalWeight = floatval($order['total_weight'] ?? 0);
+                        $pricePerKg = floatval($order['price_per_kg'] ?? 0);
+                        $volume = floatval($order['volume'] ?? 0);
+                        $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
+                        $domesticFee = floatval($order['domestic_fee'] ?? 0);
+                        $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+
+                        $priceByWeight = $totalWeight * $pricePerKg;
+                        $priceByVolume = $volume * $pricePerCubicMeter;
+                        $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
+                        $total_amount += $finalPrice;
+                    }
+
+                    // Cộng thêm phí giao hàng và phí khác
+                    $shippingFee = floatval($invoice['shipping_fee'] ?? 0);
+                    $otherFee = floatval($invoice['other_fee'] ?? 0);
+                    $invoice['total_amount'] = $total_amount + $shippingFee + $otherFee;
+                } catch (\Exception $e) {
+                    log_message('error', 'Error calculating total amount for invoice ' . $invoice['id'] . ': ' . $e->getMessage());
+                    $invoice['total_amount'] = 0;
+                }
+            }
+
+            // Lấy danh sách khách hàng để hiển thị dropdown
+            $customerModel = new \App\Models\CustomerModel();
+            $customers = $customerModel->select('customer_code, fullname')
+                ->where('customer_code IS NOT NULL')
+                ->orderBy('customer_code', 'ASC')
+                ->findAll();
+
+            // Tạo đối tượng pager
+            $pager = service('pager');
+            $pager->setPath('invoices/overdue');
+            $pager->makeLinks($page, $perPage, $total);
+
+            $data = [
+                'invoices' => $invoices,
+                'pager' => $pager,
+                'days' => $days,
+                'customer_code' => $customerCode,
+                'customers' => $customers,
+                'total' => $total,
+                'totalInvoices' => $totalInvoices,
+                'perPage' => $perPage,
+                'page' => $page
+            ];
+
+            return view('invoices/overdue', $data);
+        } catch (\Exception $e) {
+            log_message('error', 'Error in overdue method: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại.');
         }
     }
 }

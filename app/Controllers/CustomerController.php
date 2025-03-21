@@ -13,6 +13,7 @@ class CustomerController extends BaseController
     protected $customerTransactionModel;
     protected $invoiceModel;
     protected $orderModel;
+    protected $db;
 
     public function __construct()
     {
@@ -20,6 +21,7 @@ class CustomerController extends BaseController
         $this->customerTransactionModel = new CustomerTransactionModel();
         $this->invoiceModel = new InvoiceModel(); // Khởi tạo nếu cần
         $this->orderModel = new OrderModel();     // Khởi tạo nếu cần
+        $this->db = \Config\Database::connect();
     }
 
     public function index()
@@ -116,27 +118,22 @@ class CustomerController extends BaseController
     }
 
 
-
     public function edit($id)
     {
-        // Lấy thông tin khách hàng
         $customer = $this->customerModel->find($id);
-
         if (!$customer) {
             throw new \CodeIgniter\Exceptions\PageNotFoundException("Khách hàng không tồn tại.");
         }
 
-        // Nếu request là POST thì xử lý cập nhật
         if ($this->request->getMethod() === 'POST') {
-            // Quy định các rule kiểm tra dữ liệu
             $rules = [
                 'fullname' => 'required|min_length[3]|max_length[100]',
                 'phone' => 'required|regex_match[/^[0-9]{10,15}$/]',
                 'address' => 'required|min_length[5]|max_length[255]',
                 'zalo_link' => 'permit_empty|valid_url',
                 'email' => 'permit_empty|valid_email',
-                'price_per_kg' => 'required|integer|greater_than_equal_to[0]', // Kiểm tra giá 1kg
-                'price_per_cubic_meter' => 'required|integer|greater_than_equal_to[0]' // Kiểm tra giá 1 mét khối
+                'price_per_kg' => 'required|integer|greater_than_equal_to[0]',
+                'price_per_cubic_meter' => 'required|integer|greater_than_equal_to[0]'
             ];
 
             if (!$this->validate($rules)) {
@@ -145,7 +142,6 @@ class CustomerController extends BaseController
                     ->with('errors', $this->validator->getErrors());
             }
 
-            // Lấy dữ liệu từ form và chỉ nhận các trường được phép
             $data = [
                 'fullname' => $this->request->getPost('fullname'),
                 'phone' => $this->request->getPost('phone'),
@@ -156,18 +152,55 @@ class CustomerController extends BaseController
                 'price_per_cubic_meter' => $this->request->getPost('price_per_cubic_meter'),
             ];
 
-            // Cập nhật dữ liệu vào database
             if ($this->customerModel->update($id, $data)) {
-                // Nếu cập nhật thành công, chuyển hướng về trang danh sách
+                cache()->delete("order_stats_$id");
+                cache()->delete("invoice_stats_$id");
                 return redirect()->to('/customers')->with('success', 'Cập nhật khách hàng thành công.');
             } else {
-                // Nếu cập nhật thất bại, thông báo lỗi
                 return redirect()->back()->with('error', 'Cập nhật khách hàng thất bại.');
             }
         }
 
-        // Nếu không phải POST, hiển thị form chỉnh sửa
-        return view('customers/edit', ['customer' => $customer]);
+        // Lấy thống kê đơn hàng từ cache hoặc database
+        $orderCacheKey = "order_stats_$id";
+        if (!($orderStats = cache($orderCacheKey))) {
+            $orderStats = $this->orderModel->getOrderStatsByCustomer($id);
+            cache()->save($orderCacheKey, $orderStats, 3600); // Cache trong 1 giờ
+        }
+        $totalOrders = $orderStats['total_orders'];
+        $chinaStock = $orderStats['china_stock'];
+        $stockOrders = $orderStats['in_stock'];
+        $pendingShipping = $orderStats['pending_shipping'];
+        $shippedOrders = $orderStats['shipped'];
+
+        // Lấy thống kê phiếu xuất từ cache hoặc database
+        $invoiceCacheKey = "invoice_stats_$id";
+        if (!($invoiceStats = cache($invoiceCacheKey))) {
+            $invoiceStats = $this->invoiceModel->getInvoiceStatsByCustomer($id);
+            cache()->save($invoiceCacheKey, $invoiceStats, 3600); // Cache trong 1 giờ
+        }
+        $totalInvoices = $invoiceStats['total_invoices'];
+        $paidInvoices = $invoiceStats['paid_invoices'];
+        $unpaidInvoices = $invoiceStats['unpaid_invoices'];
+        $deliveredInvoices = $invoiceStats['delivered_invoices'];
+        $pendingInvoices = $invoiceStats['pending_invoices'];
+
+        // Truyền dữ liệu sang view
+        $data = [
+            'customer' => $customer,
+            'totalOrders' => $totalOrders,
+            'chinaStock' => $chinaStock,
+            'stockOrders' => $stockOrders,
+            'pendingShipping' => $pendingShipping,
+            'shippedOrders' => $shippedOrders,
+            'totalInvoices' => $totalInvoices,
+            'paidInvoices' => $paidInvoices,
+            'unpaidInvoices' => $unpaidInvoices,
+            'deliveredInvoices' => $deliveredInvoices,
+            'pendingInvoices' => $pendingInvoices
+        ];
+
+        return view('customers/edit', $data);
     }
 
 
@@ -211,29 +244,10 @@ class CustomerController extends BaseController
 
     public function detail($id)
     {
-        $customer = $this->customerModel->find($id);
-        if (!$customer) {
+        $data = $this->customerModel->getCustomerDetail($id);
+        if (!$data) {
             throw new \CodeIgniter\Exceptions\PageNotFoundException("Khách hàng không tồn tại.");
         }
-
-        $balance = $this->customerModel->getCustomerBalance($id);
-        $orderStats = $this->orderModel->getOrderStatsByCustomer($id);
-        $recentInvoices = $this->invoiceModel->getRecentInvoicesByCustomer($id, 10);
-
-        // Tính toán động total_amount cho mỗi invoice
-        foreach ($recentInvoices as &$invoice) {
-            $invoice['dynamic_total'] = $this->invoiceModel->calculateDynamicTotal($invoice['id']);
-        }
-
-        $transactions = $this->customerTransactionModel->getCustomerTransactions($id);
-
-        $data = [
-            'customer' => $customer,
-            'balance' => $balance,
-            'orderStats' => $orderStats,
-            'recentInvoices' => $recentInvoices,
-            'transactions' => $transactions,
-        ];
 
         return view('customers/detail', $data);
     }
@@ -260,10 +274,42 @@ class CustomerController extends BaseController
 
             if ($this->customerTransactionModel->addTransaction($data)) {
                 cache()->delete("customer_balance_{$id}");
+                cache()->delete("invoice_stats_$id");
+                cache()->delete("order_stats_$id");
                 return redirect()->to("/customers/detail/{$id}")->with('success', 'Nạp tiền thành công.');
             } else {
                 return redirect()->back()->with('error', 'Nạp tiền thất bại.');
             }
         }
+    }
+
+    public function invoices($id)
+    {
+        // Lấy thông tin khách hàng
+        $customer = $this->customerModel->find($id);
+        if (!$customer) {
+            return redirect()->to('/customers')->with('error', 'Khách hàng không tồn tại.');
+        }
+
+        // Lấy các tham số lọc
+        $filters = [
+            'shipping_status' => $this->request->getGet('shipping_status'),
+            'payment_status' => $this->request->getGet('payment_status')
+        ];
+        $page = $this->request->getGet('page') ?? 1;
+
+        // Lấy danh sách phiếu xuất từ Model
+        $result = $this->customerModel->getCustomerInvoices($id, $filters, $page);
+
+        // Truyền dữ liệu sang view
+        $data = [
+            'customer' => $customer,
+            'invoices' => $result['invoices'],
+            'pager' => $result['pager'],
+            'shipping_status' => $filters['shipping_status'],
+            'payment_status' => $filters['payment_status']
+        ];
+
+        return view('customers/invoices', $data);
     }
 }

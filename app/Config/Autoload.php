@@ -41,8 +41,7 @@ class Autoload extends AutoloadConfig
      */
     public $psr4 = [
         APP_NAMESPACE => APPPATH,
-        'App'       => APPPATH,
-        'PhpOffice' => APPPATH . 'Libraries/PhpSpreadsheet/src/PhpSpreadsheet',
+        'App' => APPPATH
     ];
 
     /**
@@ -79,7 +78,9 @@ class Autoload extends AutoloadConfig
      *
      * @var list<string>
      */
-    public $files = [];
+    public $files = [
+        ROOTPATH . 'vendor/autoload.php', // Nạp autoload của Composer
+    ];
 
     /**
      * -------------------------------------------------------------------

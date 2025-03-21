@@ -26,6 +26,7 @@ class OrderModel extends Model
         'export_date',
         'shipping_fee',
         'created_at',
+        'created_by',
         'vietnam_stock_date',       // Ngày nhập kho Việt Nam
         'price_per_kg',             // Giá 1 kg
         'price_per_cubic_meter',    // Giá 1 khối
@@ -49,9 +50,16 @@ class OrderModel extends Model
     {
         return $this->select('
                 orders.*, 
-                invoices.status as invoice_status
+                invoices.status as invoice_status,
+                invoices.shipping_status,
+                CASE 
+                    WHEN orders.vietnam_stock_date IS NULL THEN "china_stock"
+                    WHEN orders.invoice_id IS NULL THEN "in_stock"
+                    WHEN invoices.shipping_status = "confirmed" THEN "shipped"
+                    ELSE "pending_shipping"
+                END AS order_status
             ')
-            ->join('invoices', 'invoices.id = orders.invoice_id', 'left') // Liên kết bảng invoices qua cột invoice_id
+            ->join('invoices', 'invoices.id = orders.invoice_id', 'left')
             ->orderBy('orders.created_at', 'DESC')
             ->findAll();
     }
@@ -66,20 +74,27 @@ class OrderModel extends Model
             ->where('customer_id', $customerId)
             ->countAllResults();
 
-        // Đếm số đơn tồn kho (invoice_id IS NULL)
-        $inStock = $db->table('orders')
+        // Đơn hàng kho Trung Quốc (vietnam_stock_date IS NULL)
+        $chinaStock = $db->table('orders')
             ->where('customer_id', $customerId)
-            ->where('invoice_id IS NULL') // Chỉ lấy đơn chưa có trong invoices
+            ->where('vietnam_stock_date IS NULL')
             ->countAllResults();
 
-        // Đếm số đơn đang xuất (có invoice nhưng shipping_status = 'pending')
-        $shipping = $db->table('orders o')
+        // Đơn hàng tồn kho (có vietnam_stock_date nhưng invoice_id IS NULL)
+        $inStock = $db->table('orders')
+            ->where('customer_id', $customerId)
+            ->where('vietnam_stock_date IS NOT NULL')
+            ->where('invoice_id IS NULL')
+            ->countAllResults();
+
+        // Đơn hàng chờ giao (có invoice_id nhưng shipping_status = 'pending')
+        $pendingShipping = $db->table('orders o')
             ->join('invoices i', 'i.id = o.invoice_id', 'left')
             ->where('o.customer_id', $customerId)
             ->where('i.shipping_status', 'pending')
             ->countAllResults();
 
-        // Đếm số đơn đã xuất (shipping_status = 'confirmed')
+        // Đơn hàng đã giao (có invoice_id và shipping_status = 'confirmed')
         $shipped = $db->table('orders o')
             ->join('invoices i', 'i.id = o.invoice_id', 'left')
             ->where('o.customer_id', $customerId)
@@ -88,9 +103,155 @@ class OrderModel extends Model
 
         return [
             'total_orders' => $totalOrders,
+            'china_stock' => $chinaStock,
             'in_stock' => $inStock,
-            'shipping' => $shipping,
+            'pending_shipping' => $pendingShipping,
             'shipped' => $shipped,
         ];
+    }
+
+    /**
+     * Format số volume với 3 chữ số sau dấu phẩy
+     */
+    public function formatVolume($volume)
+    {
+        return number_format($volume, 3, '.', '');
+    }
+
+    /**
+     * Lấy thống kê số bao và số lô theo ngày
+     */
+    public function getPackageAndBatchStats($date)
+    {
+        $db = \Config\Database::connect();
+
+        // Đếm số bao duy nhất
+        $totalPackages = $db->table('orders')
+            ->select('COUNT(DISTINCT package_code) as total_packages')
+            ->where('DATE(created_at)', $date)
+            ->where('package_code IS NOT NULL')
+            ->get()
+            ->getRow()
+            ->total_packages ?? 0;
+
+        // Đếm số lô duy nhất
+        $totalBatches = $db->table('orders')
+            ->select('COUNT(DISTINCT order_code) as total_batches')
+            ->where('DATE(created_at)', $date)
+            ->where('order_code IS NOT NULL')
+            ->get()
+            ->getRow()
+            ->total_batches ?? 0;
+
+        return [
+            'total_packages' => $totalPackages,
+            'total_batches' => $totalBatches
+        ];
+    }
+
+    /**
+     * Lấy thống kê đơn hàng với các điều kiện lọc
+     */
+    public function getOrderStatistics($filters = [])
+    {
+        // Xây dựng điều kiện where từ filters
+        $whereConditions = $this->buildWhereConditions($filters);
+
+        return [
+            'total' => $this->getTotalOrders($whereConditions),
+            'china_stock' => $this->getChinaStockOrders($whereConditions),
+            'in_stock' => $this->getInStockOrders($whereConditions),
+            'pending_shipping' => $this->getPendingShippingOrders($whereConditions),
+            'shipped' => $this->getShippedOrders($whereConditions)
+        ];
+    }
+
+    /**
+     * Xây dựng điều kiện where từ filters
+     */
+    private function buildWhereConditions($filters)
+    {
+        $whereConditions = [];
+
+        if (!empty($filters['tracking_code'])) {
+            $whereConditions['orders.tracking_code'] = $filters['tracking_code'];
+        }
+
+        if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
+            $whereConditions['customers.customer_code'] = $filters['customer_code'];
+        }
+
+        if (!empty($filters['from_date'])) {
+            $whereConditions['orders.created_at >='] = $filters['from_date'] . ' 00:00:00';
+        }
+
+        if (!empty($filters['to_date'])) {
+            $whereConditions['orders.created_at <='] = $filters['to_date'] . ' 23:59:59';
+        }
+
+        return $whereConditions;
+    }
+
+    /**
+     * Lấy tổng số đơn hàng
+     */
+    private function getTotalOrders($whereConditions)
+    {
+        return $this->select('orders.*')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->where($whereConditions)
+            ->countAllResults();
+    }
+
+    /**
+     * Lấy số đơn hàng ở kho TQ
+     */
+    private function getChinaStockOrders($whereConditions)
+    {
+        return $this->select('orders.*')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->where($whereConditions)
+            ->where('vietnam_stock_date IS NULL')
+            ->countAllResults();
+    }
+
+    /**
+     * Lấy số đơn hàng tồn kho
+     */
+    private function getInStockOrders($whereConditions)
+    {
+        return $this->select('orders.*')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->where($whereConditions)
+            ->where('vietnam_stock_date IS NOT NULL')
+            ->where('orders.invoice_id IS NULL')
+            ->countAllResults();
+    }
+
+    /**
+     * Lấy số đơn hàng chờ giao
+     */
+    private function getPendingShippingOrders($whereConditions)
+    {
+        return $this->select('orders.*, i.shipping_confirmed_at')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+            ->where($whereConditions)
+            ->where('orders.invoice_id IS NOT NULL')
+            ->where('i.shipping_confirmed_at IS NULL')
+            ->countAllResults();
+    }
+
+    /**
+     * Lấy số đơn hàng đã giao
+     */
+    private function getShippedOrders($whereConditions)
+    {
+        return $this->select('orders.*, i.shipping_confirmed_at')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+            ->where($whereConditions)
+            ->where('i.shipping_confirmed_at IS NOT NULL')
+            ->countAllResults();
     }
 }

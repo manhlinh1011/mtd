@@ -5,14 +5,20 @@
     <div class="row">
         <div class="col-12">
             <div>
-                <h4 class="header-title mb-3">Welcome !</h4>
+                <h4 class="header-title mb-3">Tổng quan</h4>
             </div>
         </div>
     </div>
     <!-- end row -->
 
-
-
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-danger">
+                <i class="fa fa-exclamation-triangle"></i> Lưu ý: Đang có <span class="badge bg-danger"><?= $totalOverdueInvoices ?></span> phiếu xuất quá hạn 7 ngày.
+                <a href="<?= base_url('invoices/overdue') ?>" class="btn btn-danger btn-sm float-end"> Xem chi tiết</a>
+            </div>
+        </div>
+    </div>
     <!-- Thông tin thống kê -->
     <div class="row">
         <div class="col-md-3">
@@ -49,9 +55,108 @@
         </div>
     </div>
 
+    <div class="row mt-2">
+        <div class="col-3">
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">Thống kê đơn hàng hôm nay</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Nhập kho trung quốc:</span>
+                        <span class="badge bg-primary"><?= $todayStats['china_import'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Nhập kho việt nam:</span>
+                        <span class="badge bg-success"><?= $todayStats['vietnam_import'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Đơn hàng tồn kho:</span>
+                        <span class="badge bg-danger text-white"><?= $todayStats['in_stock'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Đơn hàng xuất:</span>
+                        <span class="badge bg-info"><?= $todayStats['exported'] ?></span>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small stretched-link" href="<?= base_url('orders') ?>">Chi tiết</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">Thống kê phiếu xuất hôm nay</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Phiếu xuất tạo mới:</span>
+                        <span class="badge bg-primary"><?= $invoiceStats['new'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Phiếu xuất được giao:</span>
+                        <span class="badge bg-success"><?= $invoiceStats['shipped'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Phiếu xuất quá hạn 7 ngày:</span>
+                        <span class="badge bg-danger"><?= $invoiceStats['overdue'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Đơn hàng xuất:</span>
+                        <span class="badge bg-info"><?= $invoiceStats['total_orders'] ?></span>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small stretched-link" href="<?= base_url('invoices') ?>">Chi tiết</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">Thống kê giao dịch</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Số lần nạp tiền:</span>
+                        <span class="badge bg-primary"><?= $transactionStats['deposit_count'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Số lần thanh toán phiếu xuất:</span>
+                        <span class="badge bg-success"><?= $transactionStats['payment_count'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Số tiền nạp:</span>
+                        <span class="badge bg-info"><?= number_format($transactionStats['deposit_amount'], 0, ',', '.') ?> đ</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Số tiền thanh toán phiếu xuất:</span>
+                        <span class="badge bg-warning text-dark"><?= number_format($transactionStats['payment_amount'], 0, ',', '.') ?> đ</span>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small stretched-link" href="<?= base_url('transactions') ?>">Chi tiết</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">Thống kê số bao</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Tổng số bao:</span>
+                        <span class="badge bg-primary"><?= $packageStats['total_packages'] ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Tổng số lô:</span>
+                        <span class="badge bg-success"><?= $packageStats['total_batches'] ?></span>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small stretched-link" href="<?= base_url('orders') ?>">Chi tiết</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bảng dữ liệu -->
-    <div class="row mt-4">
-        <div class="col-md-12">
+    <div class="row mt-2">
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">Đơn hàng gần đây</h5>
@@ -97,45 +202,36 @@
                                     <tr>
                                         <td class="text-center"><?= $order['id'] ?></td>
                                         <td class="text-center"><?= $order['tracking_code'] ?></td>
-                                        <td class="text-center"><a href="#"><?= $order['customer_code'] ?> (<?= $order['customer_name'] ?>)</a></td>
+                                        <td class="text-center"><a href="<?= base_url('/customers/detail/') ?>"><?= $order['customer_code'] ?> (<?= $order['customer_name'] ?>)</a></td>
                                         <td class="text-center"><?= timeAgo($order['created_at']) ?></td>
                                         <td class="text-center">
                                             <span class="badge 
                                                 <?php
-                                                switch ($order['order_status']) {
-                                                    case 'in_stock':
-                                                        echo 'badge-danger';
-                                                        break; // Tồn kho (chưa có invoice)
-                                                    case 'shipping':
-                                                        echo 'badge-warning';
-                                                        break; // Đang giao (pending)
-                                                    case 'shipped':
-                                                        echo 'badge-success';
-                                                        break; // Đã giao (confirmed)
-                                                    default:
-                                                        echo 'bg-danger'; // Không xác định
-                                                }
+                                                if ($order['vietnam_stock_date'] === null):
+                                                    echo 'bg-primary';
+                                                elseif ($order['invoice_id'] === null):
+                                                    echo 'bg-danger';
+                                                elseif ($order['shipping_confirmed_at'] !== null):
+                                                    echo 'bg-success';
+                                                else:
+                                                    echo 'bg-warning';
+                                                endif;
                                                 ?>">
                                                 <?php
-                                                switch ($order['order_status']) {
-                                                    case 'in_stock':
-                                                        echo 'Tồn kho';
-                                                        break;
-                                                    case 'shipping':
-                                                        echo 'Đang giao';
-                                                        break;
-                                                    case 'shipped':
-                                                        echo 'Đã giao';
-                                                        break;
-                                                    default:
-                                                        echo 'Không xác định';
-                                                }
+                                                if ($order['vietnam_stock_date'] === null):
+                                                    echo 'Kho TQ';
+                                                elseif ($order['invoice_id'] === null):
+                                                    echo 'Tồn kho';
+                                                elseif ($order['shipping_confirmed_at'] !== null):
+                                                    echo 'Đã giao';
+                                                else:
+                                                    echo 'Chờ giao';
+                                                endif;
                                                 ?>
                                             </span>
-
                                         </td>
                                         <td class="text-center">
-                                            <a href="/orders/view/<?= $order['id'] ?>" class="btn btn-sm btn-info">Chi tiết</a>
+                                            <a href="/orders/edit/<?= $order['id'] ?>" class="btn btn-sm btn-info">Chi tiết</a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -145,9 +241,8 @@
                 </div>
             </div>
         </div>
-    </div>
-    <div class="row mt-4">
-        <div class="col-md-12">
+
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">Top 10 khách hàng đặt hàng nhiều nhất</h5>
@@ -158,7 +253,6 @@
                                     <th>#</th>
                                     <th>Mã khách hàng</th>
                                     <th>Số điện thoại</th>
-                                    <th>Zalo</th>
                                     <th>Email</th>
                                     <th>Tổng số đơn hàng</th>
                                 </tr>
@@ -183,7 +277,6 @@
                                         <td class="text-center"><?= $rank++  ?></td>
                                         <td class="text-center"><?= $customer['customer_code'] ?></td>
                                         <td class="text-center"><?= $customer['phone'] ?></td>
-                                        <td class="text-center"><?= $customer['zalo_link'] ?></td>
                                         <td class="text-center"><?= $customer['email'] ?></td>
                                         <td class="text-center"><?= $customer['total_orders'] ?></td>
                                     </tr>
@@ -234,6 +327,7 @@
             </div>
         </div>
     </div>
+
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>

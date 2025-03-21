@@ -25,8 +25,6 @@ $routes->get('/user/editRole/(:num)', 'User::editRole/$1');
 $routes->post('/user/updateRole/(:num)', 'User::updateRole/$1');
 $routes->get('/user/deleteRole/(:num)', 'User::deleteRole/$1');
 
-
-
 $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('/dashboard', 'Dashboard::index');
     $routes->get('/profile', 'Profile::index');
@@ -40,6 +38,9 @@ $routes->group('customers', function ($routes) {
     $routes->post('edit/(:num)', 'CustomerController::edit/$1');
     $routes->get('delete/(:num)', 'CustomerController::delete/$1');
     $routes->post('update-bulk', 'CustomerController::updateBulk');
+    $routes->get('detail/(:num)', 'CustomerController::detail/$1');
+    $routes->post('deposit/(:num)', 'CustomerController::deposit/$1');
+    $routes->get('invoices/(:num)', 'CustomerController::invoices/$1');
 });
 
 $routes->group('product-types', function ($routes) {
@@ -60,20 +61,20 @@ $routes->group('orders', function ($routes) {
     $routes->get('delete/(:num)', 'OrderController::delete/$1');
     $routes->post('update/(:num)', 'OrderController::update/$1');
     $routes->get('export', 'OrderController::exportToExcel');
+    $routes->post('update-bulk', 'OrderController::updateBulk');
 });
 
 $routes->get('/api/customers', 'ApiController::getAllCustomers');
 $routes->get('/api/product-types', 'ApiController::getAllProductTypes');
 $routes->post('/api/createorder', 'ApiController::createOrder');
 $routes->get('/api/check-tracking', 'ApiController::checkTrackingCode');
+$routes->get('/api/check-vietnam-stock', 'ApiController::checkVietnamStockStatus');
+$routes->post('/api/update-vietnam-stock', 'ApiController::updateVietnamStockDate');
 
 $routes->get('exchange-rates', 'ExchangeRateController::index');
 $routes->get('exchange-rates/update-form', 'ExchangeRateController::updateForm');
 $routes->post('exchange-rates/update', 'ExchangeRateController::update');
-
 $routes->get('api/latest-exchange-rate', 'ExchangeRateController::getLatestRate');
-
-$routes->post('/orders/update-bulk', 'OrderController::updateBulk');
 
 $routes->post('/api/update-vietnam-stock-date', 'OrderController::updateVietnamStockDate');
 $routes->post('/api/update-vietnam-stock-date-by-tracking', 'OrderController::updateVietnamStockDateByTrackingCode');
@@ -81,7 +82,7 @@ $routes->post('/api/update-vietnam-stock-date-by-tracking', 'OrderController::up
 $routes->get('/permissions', 'PermissionController::index');
 $routes->get('/permissions/create', 'PermissionController::create');
 $routes->post('/permissions/store', 'PermissionController::store');
-$routes->match(['get', 'post'], '/permissions/assign', 'PermissionController::assign');
+$routes->match(['GET', 'POST'], '/permissions/assign', 'PermissionController::assign');
 $routes->post('/permissions/saveAssignedPermissions', 'PermissionController::saveAssignedPermissions');
 $routes->post('/permissions/storeAssignment', 'PermissionController::storeAssignment');
 
@@ -97,14 +98,15 @@ $routes->group('invoices', function ($routes) {
     $routes->post('store/(:num)', 'InvoiceController::store/$1');
     $routes->get('detail/(:num)', 'InvoiceController::detail/$1');
     $routes->post('addToCartByTrackingCode', 'InvoiceController::addToCartByTrackingCode');
-
-    // Thêm các tuyến đường cho thanh toán hóa đơn
-    $routes->get('payments/(:num)', 'InvoiceController::viewPayments/$1');           // Xem danh sách thanh toán của hóa đơn
-    $routes->get('payments/create/(:num)', 'InvoiceController::createPayment/$1');  // Form thêm thanh toán
-    $routes->post('payments/store/(:num)', 'InvoiceController::storePayment/$1');   // Lưu thanh toán mới
-    $routes->get('payments/delete/(:num)/(:num)', 'InvoiceController::deletePayment/$1/$2'); // Xóa thanh toán (invoice_id/payment_id)
-
+    $routes->get('payments/(:num)', 'InvoiceController::viewPayments/$1');
+    $routes->get('payments/create/(:num)', 'InvoiceController::createPayment/$1');
+    $routes->post('payments/store/(:num)', 'InvoiceController::storePayment/$1');
+    $routes->get('payments/delete/(:num)/(:num)', 'InvoiceController::deletePayment/$1/$2');
     $routes->get('confirmShipping/(:num)', 'InvoiceController::confirmShipping/$1');
+    $routes->get('delete/(:num)', 'InvoiceController::delete/$1'); // Xóa phiếu xuất
+    $routes->post('reassignOrder/(:num)', 'InvoiceController::reassignOrder/$1'); // Chuyển đơn hàng
+    $routes->get('overdue', 'InvoiceController::overdue');
+    $routes->get('invoices/detail/(:num)', 'InvoiceController::detail/$1');
 });
 
 $routes->post('/invoices/addPayment/(:num)', 'InvoiceController::addPayment/$1');
@@ -114,10 +116,24 @@ $routes->post('/invoices/updateBulkPrices/(:num)', 'InvoiceController::updateBul
 
 $routes->get('/accounting-statistics', 'AccountingStatisticsController::index');
 
-$routes->group('customers', function ($routes) {
-    $routes->get('detail/(:num)', 'CustomerController::detail/$1');
-    $routes->post('deposit/(:num)', 'CustomerController::deposit/$1');
-});
-
 $routes->get('tracking', 'TrackingController::index');
 $routes->get('tracking/check', 'TrackingController::check');
+
+
+$routes->get('system-logs/', 'SystemLogController::index'); // Hiển thị danh sách log
+$routes->get('system-logs/view/(:num)', 'SystemLogController::view/$1'); // Xem chi tiết log (tùy chọn)
+$routes->get('system-logs/delete/(:num)', 'SystemLogController::delete/$1'); // Xóa log (tùy chọn)
+
+$routes->get('orders/import', 'OrderController::importForm');
+$routes->post('orders/preview', 'OrderController::preview');
+$routes->post('orders/import', 'OrderController::import');
+
+$routes->get('/orders/vncheck', 'OrderController::vnCheck');
+$routes->post('/orders/checkVietnamStock', 'OrderController::checkVietnamStock');
+$routes->post('/orders/updateCustomerAndStock', 'OrderController::updateCustomerAndStock');
+$routes->post('/orders/updateVietnamStockDateUI', 'OrderController::updateVietnamStockDateUI');
+
+$routes->get('/orders/export-vn-today', 'OrderController::exportVietnamStockToday');
+
+$routes->get('packages', 'PackageController::index');
+$routes->get('packages/detail/(:segment)/(:segment)', 'PackageController::detail/$1/$2');

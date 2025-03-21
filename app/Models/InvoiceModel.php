@@ -12,15 +12,15 @@ class InvoiceModel extends Model
     protected $allowedFields = [
         'customer_id',
         'created_by',
-        'approved_by',
         'shipping_fee',
         'other_fee',
         'status',
         'shipping_status',
         'payment_status',
+        'notes',
         'created_at',
-        'approved_at',
-        'completed_at'
+        'shipping_confirmed_by',
+        'shipping_confirmed_at'
     ];
 
     /**
@@ -38,12 +38,41 @@ class InvoiceModel extends Model
     // Cập nhật phương thức để tính toán động total_amount
     public function getRecentInvoicesByCustomer($customerId, $limit = 10)
     {
-        return $this->select('invoices.id, invoices.created_at, invoices.shipping_fee, invoices.other_fee, 
-                             invoices.status, invoices.shipping_status, invoices.payment_status')
+        $invoices = $this->select('invoices.*, 
+                            invoices.id, 
+                            invoices.created_at, 
+                            invoices.shipping_fee, 
+                            invoices.other_fee, 
+                            invoices.status, 
+                            invoices.shipping_status, 
+                            invoices.payment_status')
             ->where('customer_id', $customerId)
             ->orderBy('created_at', 'DESC')
             ->limit($limit)
             ->findAll();
+
+        // Tính toán dynamic_total cho mỗi invoice
+        foreach ($invoices as &$invoice) {
+            // Lấy tất cả đơn hàng của phiếu xuất
+            $orders = $this->db->table('orders')
+                ->where('invoice_id', $invoice['id'])
+                ->get()
+                ->getResultArray();
+
+            $total = 0;
+            foreach ($orders as $order) {
+                $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
+                $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
+                $finalPrice = max($priceByWeight, $priceByVolume);
+                $domesticFee = $order['domestic_fee'] * $order['exchange_rate'];
+                $total += $finalPrice + $domesticFee;
+            }
+
+            // Cộng thêm phí giao hàng và phí khác
+            $invoice['dynamic_total'] = $total + (float)$invoice['shipping_fee'] + (float)$invoice['other_fee'];
+        }
+
+        return $invoices;
     }
 
     // Cập nhật phương thức để sửa lỗi first()
@@ -77,5 +106,47 @@ class InvoiceModel extends Model
 
         // Tính tổng cộng (tiền vận chuyển + phí giao hàng + phí khác)
         return $transportTotal + $invoice['shipping_fee'] + $invoice['other_fee'];
+    }
+
+    public function getInvoiceStatsByCustomer($customerId)
+    {
+        $db = \Config\Database::connect();
+
+        // Đếm tổng số phiếu xuất
+        $totalInvoices = $db->table('invoices')
+            ->where('customer_id', $customerId)
+            ->countAllResults();
+
+        // Đếm số phiếu xuất đã thanh toán
+        $paidInvoices = $db->table('invoices')
+            ->where('customer_id', $customerId)
+            ->where('payment_status', 'paid')
+            ->countAllResults();
+
+        // Đếm số phiếu xuất chưa thanh toán
+        $unpaidInvoices = $db->table('invoices')
+            ->where('customer_id', $customerId)
+            ->where('payment_status', 'unpaid')
+            ->countAllResults();
+
+        // Đếm số phiếu xuất đã giao
+        $deliveredInvoices = $db->table('invoices')
+            ->where('customer_id', $customerId)
+            ->where('shipping_status', 'confirmed')
+            ->countAllResults();
+
+        // Đếm số phiếu xuất chưa giao
+        $pendingInvoices = $db->table('invoices')
+            ->where('customer_id', $customerId)
+            ->where('shipping_status', 'pending')
+            ->countAllResults();
+
+        return [
+            'total_invoices' => $totalInvoices,
+            'paid_invoices' => $paidInvoices,
+            'unpaid_invoices' => $unpaidInvoices,
+            'delivered_invoices' => $deliveredInvoices,
+            'pending_invoices' => $pendingInvoices
+        ];
     }
 }
