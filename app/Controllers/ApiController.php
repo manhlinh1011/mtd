@@ -87,6 +87,20 @@ class ApiController extends ResourceController
                 ], 404);
             }
 
+
+            /// Kiểm tra sub_customer_id (nếu có)
+            if (!empty($data['sub_customer_id'])) {
+                $subCustomerModel = new \App\Models\SubCustomerModel();
+                $subCustomer = $subCustomerModel->find($data['sub_customer_id']);
+                if (!$subCustomer || $subCustomer['customer_id'] != $data['customer_id']) {
+                    return $this->respond([
+                        'status' => 404,
+                        'message' => 'Không tìm thấy mã phụ hoặc mã phụ không thuộc khách hàng này',
+                        'error' => 'Sub Customer ID không hợp lệ'
+                    ], 404);
+                }
+            }
+
             // Bổ sung thông tin giá mặc định từ khách hàng vào đơn hàng
             $data['price_per_kg'] = $customer['price_per_kg'];
             $data['price_per_cubic_meter'] = $customer['price_per_cubic_meter'];
@@ -191,6 +205,42 @@ class ApiController extends ResourceController
             return $this->respond([
                 'status' => 500,
                 'message' => 'Lỗi trong quá trình cập nhật',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Lấy danh sách mã phụ (sub customers) theo customer_id
+     */
+    public function getSubCustomers()
+    {
+        try {
+            $customerId = $this->request->getGet('customer_id');
+
+            if (empty($customerId) || !is_numeric($customerId)) {
+                return $this->respond([
+                    'status' => 400,
+                    'message' => 'Customer ID không hợp lệ',
+                    'error' => 'Yêu cầu customer_id hợp lệ'
+                ], 400);
+            }
+
+            // Load model SubCustomerModel
+            $subCustomerModel = new \App\Models\SubCustomerModel();
+
+            // Lấy danh sách mã phụ theo customer_id
+            $subCustomers = $subCustomerModel->where('customer_id', $customerId)->findAll();
+
+            return $this->respond([
+                'status' => 200,
+                'message' => 'Danh sách mã phụ được tải thành công',
+                'data' => $subCustomers
+            ], 200);
+        } catch (\Exception $e) {
+            return $this->respond([
+                'status' => 500,
+                'message' => 'Lỗi trong quá trình tải danh sách mã phụ',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -58,12 +58,12 @@ $username = $session->get('username');
 
             <li class="has-submenu">
                 <a href="<?= base_url() ?>">
-                    <i class="ti-home"></i>Dashboard
+                    <i class="ti-home"></i>Home
                 </a>
             </li>
 
             <li class="has-submenu">
-                <a href="https://gokien247.com/" target="_blank"> <i class="mdi mdi-web"></i></i>Web Gõ Kiến</a>
+                <a href="https://gokien247.com/" target="_blank"> <i class="mdi mdi-web"></i>gokien247.com</a>
             </li>
 
             <li class="has-submenu">
@@ -76,6 +76,7 @@ $username = $session->get('username');
         <!-- End navigation menu -->
         <div style="padding-top: 16px; ">
             <a href="<?= base_url() ?>invoices/cart" class="btn btn-outline-success"><i class="mdi mdi-barcode-scan"></i> Bắn mã tạo phiếu xuất</a>
+            <a href="<?= base_url() ?>orders/vncheck" class="btn btn-outline-danger"><i class="mdi mdi-warehouse"></i> Nhập Kho Việt Nam</a>
         </div>
 
         <div class="clearfix"></div>

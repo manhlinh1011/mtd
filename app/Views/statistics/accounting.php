@@ -21,15 +21,47 @@
                 </div>
             </form>
             <h3 class="mb-4">Thống Kê Công Nợ Khách Hàng</h3>
+            <?php
+            $totalDebt = 0;
+            $totalBalance = 0;
+            $totalCustomer = 0;
+            $totalInvoices = 0;
+            $totalPaid = 0;
+            foreach ($debtSummary as $summary) {
+                $totalDebt += $summary['debt'];
+                $totalBalance += $summary['balance'];
+                $totalCustomer++;
+                $totalInvoices += $summary['total_invoices'];
+                $totalPaid += $summary['total_paid'];
+            }
+            ?>
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
-                        <th>Mã Khách Hàng</th>
-                        <th>Tên Khách Hàng</th>
-                        <th>Số Dư Tài Khoản</th>
-                        <th>Tổng Tiền Hóa Đơn</th>
-                        <th>Tổng Tiền Đã Thanh Toán</th>
-                        <th>Số Tiền Còn Nợ</th>
+                        <th>Mã Khách Hàng
+                            <br>
+                            <span class="badge bg-info px-2 py-1"><?= number_format($totalCustomer, 0, ',', '.') ?></span>
+                        </th>
+                        <th>Tên Khách Hàng
+                            <br>
+                            <span class="badge bg-info px-2 py-1"><?= number_format($totalCustomer, 0, ',', '.') ?></span>
+                        </th>
+                        <th>Số Dư Tài Khoản
+                            <br>
+                            <span class="badge bg-warning px-2 py-1"><?= number_format($totalBalance, 0, ',', '.') ?></span>
+                        </th>
+                        <th>Tổng Tiền Hóa Đơn
+                            <br>
+                            <span class="badge bg-info px-2 py-1"><?= number_format($totalInvoices, 0, ',', '.') ?></span>
+                        </th>
+                        <th>Tổng Tiền Đã Thanh Toán
+                            <br>
+                            <span class="badge bg-success px-2 py-1"><?= number_format($totalPaid, 0, ',', '.') ?></span>
+                        </th>
+                        <th>Số Tiền Còn Nợ
+                            <br>
+                            <span class="badge bg-danger px-2 py-1"><?= number_format($totalDebt, 0, ',', '.') ?></span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>

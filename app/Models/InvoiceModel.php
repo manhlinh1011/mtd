@@ -14,13 +14,13 @@ class InvoiceModel extends Model
         'created_by',
         'shipping_fee',
         'other_fee',
-        'status',
-        'shipping_status',
         'payment_status',
+        'shipping_status',
         'notes',
         'created_at',
         'shipping_confirmed_by',
-        'shipping_confirmed_at'
+        'shipping_confirmed_at',
+        'sub_customer_id'
     ];
 
     /**
@@ -38,16 +38,18 @@ class InvoiceModel extends Model
     // Cập nhật phương thức để tính toán động total_amount
     public function getRecentInvoicesByCustomer($customerId, $limit = 10)
     {
-        $invoices = $this->select('invoices.*, 
-                            invoices.id, 
-                            invoices.created_at, 
-                            invoices.shipping_fee, 
-                            invoices.other_fee, 
-                            invoices.status, 
-                            invoices.shipping_status, 
-                            invoices.payment_status')
-            ->where('customer_id', $customerId)
-            ->orderBy('created_at', 'DESC')
+        $invoices = $this->select('
+                invoices.*, 
+                users.fullname as created_by_name,
+                COUNT(DISTINCT o.id) as total_orders,
+                SUM(o.total_weight) as total_weight,
+                SUM(o.volume) as total_volume
+            ')
+            ->join('users', 'users.id = invoices.created_by', 'left')
+            ->join('orders o', 'o.invoice_id = invoices.id', 'left')
+            ->where('invoices.customer_id', $customerId)
+            ->groupBy('invoices.id')
+            ->orderBy('invoices.created_at', 'DESC')
             ->limit($limit)
             ->findAll();
 
@@ -61,15 +63,21 @@ class InvoiceModel extends Model
 
             $total = 0;
             foreach ($orders as $order) {
-                $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
-                $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
+                $totalWeight = floatval($order['total_weight'] ?? 0);
+                $pricePerKg = floatval($order['price_per_kg'] ?? 0);
+                $volume = floatval($order['volume'] ?? 0);
+                $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
+                $domesticFee = floatval($order['domestic_fee'] ?? 0);
+                $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+
+                $priceByWeight = $totalWeight * $pricePerKg;
+                $priceByVolume = $volume * $pricePerCubicMeter;
                 $finalPrice = max($priceByWeight, $priceByVolume);
-                $domesticFee = $order['domestic_fee'] * $order['exchange_rate'];
-                $total += $finalPrice + $domesticFee;
+                $total += $finalPrice + ($domesticFee * $exchangeRate);
             }
 
             // Cộng thêm phí giao hàng và phí khác
-            $invoice['dynamic_total'] = $total + (float)$invoice['shipping_fee'] + (float)$invoice['other_fee'];
+            $invoice['total_amount'] = $total + floatval($invoice['shipping_fee'] ?? 0) + floatval($invoice['other_fee'] ?? 0);
         }
 
         return $invoices;

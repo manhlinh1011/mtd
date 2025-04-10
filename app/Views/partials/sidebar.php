@@ -36,7 +36,8 @@ $role = $session->get('role');
                     <span class="menu-arrow"></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li><a href="<?= base_url('/customers') ?>">Danh sách</a></li>
+                    <li><a href="<?= base_url('/customers') ?>">Danh sách khách hàng</a></li>
+                    <li><a href="<?= base_url('/customers/sub-customers') ?>">Danh sách mã phụ</a></li>
                     <li><a href="<?= base_url('/customers/create') ?>">Thêm mới</a></li>
                 </ul>
             </li>
@@ -87,7 +88,10 @@ $role = $session->get('role');
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li><a href="<?= base_url() ?>accounting-statistics">Công nợ</a></li>
+                    <li><a href="<?= base_url() ?>transactions">Lịch sử giao dịch</a></li>
+                    <li><a href="<?= base_url() ?>invoices/overdue">Quá hạn thanh toán</a></li>
                     <li><a href="<?= base_url() ?>packages">Quản lý bao hàng</a></li>
+                    <li><a href="<?= base_url() ?>financial">Quản lý thu chi</a></li>
                 </ul>
             </li>
             <li>
@@ -103,6 +107,9 @@ $role = $session->get('role');
             </li>
             <li><a href="<?= base_url('/profile') ?>"><i class="mdi mdi-account-circle-outline"></i> <span> Profile </span></a></li>
             <li><a href="<?= base_url('/tracking') ?>" target="_blank"><i class="mdi mdi-package-variant"></i> Tra mã vận đơn</a></li>
+            <?php if (in_array($role, ['Quản lý', 'Quản trị viên'])): ?>
+                <li><a href="<?= base_url('/system-logs') ?>"><i class="mdi mdi-history"></i> <span> Lịch sử hệ thống</span></a></li>
+            <?php endif; ?>
         </ul>
     </div>
 </div>

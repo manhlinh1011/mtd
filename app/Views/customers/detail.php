@@ -55,7 +55,10 @@
             <div class="card mb-4">
                 <div class="card-header">Thống kê</div>
                 <div class="card-body">
-                    <h3 class="mt-1">Số dư: <strong class="text-success"><?= number_format($customer['balance'], 0, ',', '.') ?> VNĐ</strong></h3>
+                    <h3 class="mt-1">Số dư: <strong class="text-success"><?= number_format($customer['balance'], 0, ',', '.') ?> VNĐ</strong>
+
+                    </h3>
+                    <a href="/customers/update-balance/<?= $customer['id'] ?>" class="btn btn-primary btn-sm">Cập nhật số dư</a>
                     <p>Ngày tạo: <strong><?= date('d/m/Y H:i', strtotime($customer['created_at'])) ?></strong></p>
                     <hr />
                     <div class="row">
@@ -85,57 +88,105 @@
                 </div>
             </div>
         </div>
-        <div class="col-12">
-            <!-- 10 phiếu xuất gần nhất -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">10 phiếu xuất gần nhất</h3>
-                    <div class="card-tools">
-                        <a href="/customers/invoices/<?= $customer['id'] ?>" class="btn btn-primary btn-sm">Xem tất cả</a>
+
+        <?php if (isset($subCustomers) && count($subCustomers) > 0): ?>
+            <div class="col-12">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Danh sách khách hàng phụ</h3>
+                        <p>Tổng số khách hàng phụ: <strong><?= count($subCustomers) ?></strong></p>
+                    </div>
+                    <div class="card-body" style="height: 500px; overflow-y: auto;">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>#ID</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Mã phụ</th>
+                                    <th>Họ và tên</th>
+                                    <th>Số điện thoại</th>
+                                    <th>Email</th>
+                                    <th>Địa chỉ</th>
+                                    <th>Số đơn hàng</th>
+                                    <th>Số phiếu xuất</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($subCustomers as $subCustomer): ?>
+                                    <tr>
+                                        <td class="text-center"><?= $subCustomer['id'] ?></td>
+                                        <td class="text-center"><?= date('d/m/Y H:i', strtotime($subCustomer['created_at'])) ?></td>
+                                        <td class="text-center"><?= $subCustomer['sub_customer_code'] ?></td>
+                                        <td class="text-center"><?= $subCustomer['fullname'] ?></td>
+                                        <td class="text-center"><?= $subCustomer['phone'] ?></td>
+                                        <td class="text-center"><?= $subCustomer['email'] ?></td>
+                                        <td class="text-center"><?= $subCustomer['address'] ?></td>
+                                        <td class="text-center"><a href="<?= base_url() ?>orders?sub_customer_id=<?= $subCustomer['id'] ?>"><?= $subCustomer['order_count'] ?? 0 ?></a></td>
+                                        <td class="text-center"><?= ($subCustomer['paid_invoice_count'] ?? 0) ?>/<?= ($subCustomer['invoice_count'] ?? 0) ?></td>
+                                        <td class="text-center"><a href="/customers/sub-edit/<?= $subCustomer['id'] ?>" class="btn btn-primary btn-sm">Xem chi tiết</a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="card-body">
-                    <table class="table table-striped table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Mã phiếu</th>
-                                <th>Ngày tạo</th>
-                                <th>Tổng tiền</th>
-                                <th>Trạng thái xuất</th>
-                                <th>Thanh toán</th>
-                                <th>Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recentInvoices as $invoice): ?>
-                                <tr>
-                                    <td class="text-center"><a href="/invoices/detail/<?= $invoice['id'] ?>">#<?= $invoice['id'] ?></a></td>
-                                    <td class="text-center"><?= date('d/m/Y H:i', strtotime($invoice['created_at'])) ?></td>
-                                    <td class="text-center"><?= number_format($invoice['dynamic_total'] ?? 0, 0, ',', '.') ?> VNĐ</td>
-                                    <td class="text-center">
-                                        <span class="badge <?= $invoice['shipping_status'] == 'pending' ? 'bg-warning' : 'bg-success' ?>">
-                                            <?= $invoice['shipping_status'] == 'pending' ? 'Chưa xuất' : 'Đã xuất' ?>
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge <?= $invoice['payment_status'] == 'unpaid' ? 'bg-danger' : 'bg-primary' ?>">
-                                            <?= $invoice['payment_status'] == 'unpaid' ? 'Chưa thanh toán' : 'Đã thanh toán' ?>
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <a href="/invoices/detail/<?= $invoice['id'] ?>" class="btn btn-info btn-sm">Chi tiết</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
             </div>
+        <?php endif; ?>
 
+        <div class="col-12">
+            <?php if (isset($recentInvoices) && count($recentInvoices) > 0): ?>
+                <!-- 10 phiếu xuất gần nhất -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">10 phiếu xuất gần nhất</h3>
+                        <div class="card-tools">
+                            <a href="/customers/invoices/<?= $customer['id'] ?>" class="btn btn-primary btn-sm">Xem tất cả</a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Mã phiếu</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Tổng tiền</th>
+                                    <th>Trạng thái xuất</th>
+                                    <th>Thanh toán</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recentInvoices as $invoice): ?>
+                                    <tr>
+                                        <td class="text-center"><a href="/invoices/detail/<?= $invoice['id'] ?>">#<?= $invoice['id'] ?></a></td>
+                                        <td class="text-center"><?= date('d/m/Y H:i', strtotime($invoice['created_at'])) ?></td>
+                                        <td class="text-center"><?= number_format($invoice['total_amount'] ?? 0, 0, ',', '.') ?> VNĐ</td>
+                                        <td class="text-center">
+                                            <span class="badge <?= $invoice['shipping_confirmed_at'] === null ? 'bg-warning' : 'bg-success' ?>">
+                                                <?= $invoice['shipping_confirmed_at'] === null ? 'Chưa xuất' : 'Đã xuất' ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge <?= $invoice['payment_status'] == 'unpaid' ? 'bg-danger' : 'bg-primary' ?>">
+                                                <?= $invoice['payment_status'] == 'unpaid' ? 'Chưa thanh toán' : 'Đã thanh toán' ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <a href="/invoices/detail/<?= $invoice['id'] ?>" class="btn btn-info btn-sm">Chi tiết</a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
             <!-- Lịch sử giao dịch -->
             <div class="card mb-4">
                 <div class="card-header">Lịch sử giao dịch</div>
                 <div class="card-body">
+                    <p>Tổng số tiền nạp: <strong class="text-success"><?= number_format($totalDeposit, 0, ',', '.') ?> VNĐ</strong> Tổng số tiền thanh toán: <strong class="text-danger"><?= number_format($totalPayment, 0, ',', '.') ?> VNĐ</strong></p>
                     <table class="table table-striped table-bordered">
                         <thead>
                             <tr>
@@ -154,7 +205,7 @@
                                     <td class="text-center"><?= $transaction['transaction_type'] == 'deposit' ? 'Nạp tiền' : 'Thanh toán' ?></td>
                                     <td class="text-center"><?= number_format($transaction['amount'], 0, ',', '.') ?> VNĐ</td>
                                     <td class="text-center"><?= date('d/m/Y H:i', strtotime($transaction['created_at'])) ?></td>
-                                    <td class="text-center"><?= esc($transaction['employee_name'] ?? 'Không rõ') ?></td>
+                                    <td class="text-center"><?= esc($transaction['created_by_name'] ?? 'Không rõ') ?></td>
                                     <td class="text-center"><?= esc($transaction['notes']) ?: 'Không có' ?></td>
                                 </tr>
                             <?php endforeach; ?>

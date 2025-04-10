@@ -18,7 +18,8 @@ class CustomerModel extends Model
         'price_per_kg',       // Thêm trường này
         'price_per_cubic_meter', // Thêm trường này
         'created_at',
-        'balance'
+        'balance',
+        'payment_limit_days'
     ];
 
     public function getCustomersWithOrderCount()
@@ -71,13 +72,16 @@ class CustomerModel extends Model
         $balance = cache($cacheKey);
 
         if (empty($balance)) {
+            // Lấy tổng số dư từ các giao dịch
             $balance = $this->db->table('customer_transactions')
                 ->selectSum('amount', 'balance')
                 ->where('customer_id', $customerId)
-                ->get()->getRow()->balance ?? 0;
+                ->get()
+                ->getRow()
+                ->balance ?? 0;
 
             // Debug để kiểm tra giá trị
-            log_message('debug', "Customer ID: {$customerId}, Calculated Balance: {$balance}");
+            log_message('debug', "Customer ID: {$customerId}, Total Balance: {$balance}");
 
             cache()->save($cacheKey, $balance, 3600); // Cache trong 1 giờ
         }
@@ -94,7 +98,7 @@ class CustomerModel extends Model
                     invoices.created_at, 
                     invoices.shipping_fee, 
                     invoices.other_fee, 
-                    invoices.status,
+                    invoices.shipping_status,
                     invoices.shipping_confirmed_at,
                     invoices.payment_status')
             ->where('customer_id', $customerId);
@@ -102,9 +106,9 @@ class CustomerModel extends Model
         // Thêm điều kiện lọc
         if (!empty($filters['shipping_status'])) {
             if ($filters['shipping_status'] === 'confirmed') {
-                $builder->where('shipping_confirmed_at IS NOT NULL');
+                $builder->where('shipping_status', 'confirmed');
             } else {
-                $builder->where('shipping_confirmed_at IS NULL');
+                $builder->where('shipping_status', 'pending');
             }
         }
         if (!empty($filters['payment_status'])) {

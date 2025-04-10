@@ -23,36 +23,40 @@
                     </form>
 
                     <div id="resultArea">
-                        <?php if (isset($result)): ?>
-                            <?php if ($result['status'] === 'not_found'): ?>
+                        <?php if (isset($status)): ?>
+                            <?php if ($status === 'not_found'): ?>
                                 <div class="alert alert-warning">Mã vận đơn <strong><?= htmlspecialchars($trackingCode) ?></strong> chưa có trong hệ thống.</div>
-                            <?php elseif ($result['status'] === 'in_vn'): ?>
+                            <?php elseif ($status === 'in_vn'): ?>
                                 <h6>Trạng thái giao hàng</h6>
-                                <p>Xem chi tiết: <a href="<?= base_url('orders/edit/' . $result['order']['id']) ?>" target="_blank">Đơn hàng #<?= $result['order']['id'] ?></a></p>
+                                <p>Xem chi tiết: <a href="<?= base_url('orders/edit/' . $order['id']) ?>" target="_blank">Đơn hàng #<?= $order['id'] ?></a></p>
                                 <ul class="timeline">
-                                    <?php foreach ($result['statusHistory'] as $status): ?>
+                                    <?php foreach ($statusHistory as $status): ?>
                                         <li>
                                             <strong><?= date('d/m/Y H:i', strtotime($status['time'])) ?>:</strong>
                                             <?= htmlspecialchars($status['status']) ?>
                                         </li>
                                     <?php endforeach; ?>
                                 </ul>
-                            <?php elseif ($result['status'] === 'not_in_vn'): ?>
-                                <h6>Trạng thái giao hàng</h6>
-                                <p>Xem chi tiết: <a href="<?= base_url('orders/edit/' . $result['order']['id']) ?>" target="_blank">Đơn hàng #<?= $result['order']['id'] ?></a></p>
+                                <?php if (!empty($notes)): ?>
+                                    <div class="mt-3">
+                                        <strong>Ghi chú:</strong> <?= htmlspecialchars($notes) ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php elseif ($status === 'not_in_vn'): ?>
+                                <h6>Trạng thái giao hàng sàdsf</h6>
+                                <p>Xem chi tiết: <a href="<?= base_url('orders/edit/' . $order['id']) ?>" target="_blank">Đơn hàng #<?= $order['id'] ?></a></p>
                                 <ul class="timeline">
-                                    <?php foreach ($result['statusHistory'] as $status): ?>
+                                    <?php foreach ($statusHistory as $status): ?>
                                         <li>
                                             <strong><?= date('d/m/Y H:i', strtotime($status['time'])) ?>:</strong>
                                             <?= htmlspecialchars($status['status']) ?>
                                         </li>
                                     <?php endforeach; ?>
                                 </ul>
-
-                                <?php if ($result['isKHOTM']): ?>
+                                <?php if ($isKHOTM): ?>
                                     <form id="updateCustomerForm" method="post" action="<?= base_url('orders/updateCustomerAndStock') ?>" class="mt-3">
                                         <?= csrf_field() ?>
-                                        <input type="hidden" name="order_id" value="<?= $result['order']['id'] ?>">
+                                        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
                                         <input type="hidden" name="tracking_code" value="<?= htmlspecialchars($trackingCode) ?>">
                                         <div class="form-group row">
                                             <label for="customer_id" class="col-sm-2 col-form-label text-right">Chọn khách hàng</label>
@@ -72,12 +76,53 @@
                                                 <button type="submit" class="btn btn-success btn-block">Xác nhận</button>
                                             </div>
                                         </div>
+
+                                        <div class="form-group row" id="subCustomerRow" style="display: none;">
+                                            <label for="sub_customer_id" class="col-sm-2 col-form-label text-right">Chọn mã phụ</label>
+                                            <div class="col-sm-10">
+                                                <select class="form-control" id="sub_customer_id" name="sub_customer_id">
+                                                    <option value="">-- Không chọn mã phụ --</option>
+                                                    <!-- Sub customer options will be loaded via AJAX -->
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-group row">
+                                            <label for="notes" class="col-sm-2 col-form-label text-right">Ghi chú</label>
+                                            <div class="col-sm-10">
+                                                <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Nhập ghi chú (tùy chọn)"><?= htmlspecialchars($order['notes'] ?? '') ?></textarea>
+                                            </div>
+                                        </div>
                                     </form>
                                 <?php else: ?>
                                     <form id="updateStockForm" method="post" action="<?= base_url('orders/updateVietnamStockDateUI') ?>" class="mt-3">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="tracking_code" value="<?= htmlspecialchars($trackingCode) ?>">
-                                        <button type="submit" class="btn btn-success">Xác nhận nhập kho VN</button>
+
+                                        <?php if (isset($hasSubCustomers) && $hasSubCustomers): ?>
+                                            <div class="form-group row">
+                                                <label for="sub_customer_id" class="col-sm-2 col-form-label text-right">Chọn mã phụ</label>
+                                                <div class="col-sm-8">
+                                                    <select class="form-control" id="sub_customer_id" name="sub_customer_id">
+                                                        <option value="">-- Không chọn mã phụ --</option>
+                                                        <?php foreach ($subCustomers as $subCustomer): ?>
+                                                            <option value="<?= $subCustomer['id'] ?>">
+                                                                <?= $subCustomer['sub_customer_code'] ?> (<?= $subCustomer['fullname'] ?>)
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <div class="form-group row">
+                                            <label for="notes" class="col-sm-2 col-form-label text-right">Ghi chú</label>
+                                            <div class="col-sm-8">
+                                                <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Nhập ghi chú (tùy chọn)"><?= htmlspecialchars($order['notes'] ?? '') ?></textarea>
+                                            </div>
+                                            <div class="col-sm-2">
+                                                <button type="submit" class="btn btn-success btn-block">Xác nhận nhập kho VN</button>
+                                            </div>
+                                        </div>
                                     </form>
                                 <?php endif; ?>
                             <?php endif; ?>
@@ -149,7 +194,6 @@
 
 <?= $this->section('scripts') ?>
 <script>
-    // Định nghĩa base_url từ PHP
     const base_url = '<?= base_url() ?>';
 
     $(document).ready(function() {
@@ -174,12 +218,46 @@
             });
         });
 
+        // Load sub customers when customer is selected
+        $('#resultArea').on('change', '#customer_id', function() {
+            const customerId = $(this).val();
+            if (customerId) {
+                $.ajax({
+                    url: base_url + 'orders/get-sub-customers',
+                    method: 'GET',
+                    data: {
+                        customer_id: customerId
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 200 && response.data.length > 0) {
+                            let options = '<option value="">-- Không chọn mã phụ --</option>';
+                            response.data.forEach(subCustomer => {
+                                options += `<option value="${subCustomer.id}">${subCustomer.sub_customer_code} (${subCustomer.fullname})</option>`;
+                            });
+                            $('#sub_customer_id').html(options);
+                            $('#subCustomerRow').show();
+                        } else {
+                            $('#subCustomerRow').hide();
+                        }
+                    },
+                    error: function() {
+                        $('#subCustomerRow').hide();
+                    }
+                });
+            } else {
+                $('#subCustomerRow').hide();
+            }
+        });
+
+        // Submit update customer form with validation
         $('#resultArea').on('submit', '#updateCustomerForm', function(e) {
             e.preventDefault();
             if ($('#customer_id').val() === '') {
                 $('#warningModal').modal('show');
                 return;
             }
+
             $.ajax({
                 url: $(this).attr('action'),
                 method: 'POST',
@@ -187,7 +265,6 @@
                 dataType: 'json',
                 success: function(response) {
                     if (response.status === 200) {
-                        // Hiển thị thông báo thành công và timeline
                         let html = `
                             <div class="alert alert-success">${response.message}</div>
                             <h6>Trạng thái giao hàng</h6>
@@ -203,6 +280,9 @@
                             `;
                         });
                         html += `</ul>`;
+                        if (response.notes) {
+                            html += `<div class="mt-3"><strong>Ghi chú:</strong> ${response.notes}</div>`;
+                        }
                         $('#resultArea').html(html);
                     } else {
                         $('#resultArea').html('<div class="alert alert-danger">' + response.message + '</div>');
@@ -214,19 +294,15 @@
             });
         });
 
+        // Submit update stock form
         $('#resultArea').on('submit', '#updateStockForm', function(e) {
             e.preventDefault();
             $.ajax({
                 url: $(this).attr('action'),
                 method: 'POST',
                 data: $(this).serialize(),
-                dataType: 'json',
                 success: function(response) {
-                    if (response.status === 200) {
-                        $('#resultArea').html('<div class="alert alert-success">' + response.message + '</div>');
-                    } else {
-                        $('#resultArea').html('<div class="alert alert-danger">' + response.message + '</div>');
-                    }
+                    $('#resultArea').html(response);
                 },
                 error: function() {
                     $('#resultArea').html('<div class="alert alert-danger">Có lỗi xảy ra khi cập nhật.</div>');

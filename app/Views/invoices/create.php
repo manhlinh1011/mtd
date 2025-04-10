@@ -11,10 +11,13 @@
                 <div class="card-body">
                     <!-- Thông tin khách hàng -->
                     <div class="mb-4">
-                        <strong>Mã khách hàng:</strong> <?= $customer['customer_code'] ?></br>
-                        <strong>Tên khách hàng:</strong> <?= $customer['fullname'] ?></br>
-                        <strong>Địa chỉ:</strong> <?= $customer['address'] ?></br>
-                        <strong>Số điện thoại:</strong> <?= $customer['phone'] ?></br>
+                        <strong>Mã khách hàng:</strong> <?= esc($customer['customer_code']) ?><br>
+                        <strong>Tên khách hàng:</strong> <?= esc($customer['fullname']) ?><br>
+                        <strong>Địa chỉ:</strong> <?= esc($customer['address']) ?><br>
+                        <strong>Số điện thoại:</strong> <?= esc($customer['phone']) ?><br>
+                        <?php if (!empty($orders[0]['sub_customer_code'])): ?>
+                            <strong>Mã phụ:</strong> <?= esc($orders[0]['sub_customer_code']) ?><br>
+                        <?php endif; ?>
                     </div>
                     <?php if (session()->getFlashdata('success')): ?>
                         <div class="alert alert-success"><?= session()->getFlashdata('success') ?></div>
@@ -57,15 +60,15 @@
                                         ?>
                                         <tr data-order-id="<?= esc($order['order_id']) ?>" data-invoice-id="<?= esc($order['invoice_id'] ?? '') ?>">
                                             <td class="text-center"><?= $index + 1 ?></td>
-                                            <td class="text-center"><?= $order['tracking_code'] ?></td>
-                                            <td class="text-center"><?= $order['quantity'] ?></td>
-                                            <td class="text-center"><?= $order['total_weight'] ?> kg</td>
-                                            <td class="text-center"><?= $order['length'] ?>x<?= $order['width'] ?>x<?= $order['height'] ?></td>
-                                            <td class="text-center"><?= $order['volume'] ?> m³</td>
+                                            <td class="text-center"><?= esc($order['tracking_code']) ?></td>
+                                            <td class="text-center"><?= esc($order['quantity']) ?></td>
+                                            <td class="text-center"><?= esc($order['total_weight']) ?> kg</td>
+                                            <td class="text-center"><?= esc($order['length']) ?>x<?= esc($order['width']) ?>x<?= esc($order['height']) ?></td>
+                                            <td class="text-center"><?= esc($order['volume']) ?> m³</td>
                                             <td class="text-center"><?= number_format($order['price_per_kg'], 0, ',', '.') ?> VNĐ</td>
                                             <td class="text-center"><?= number_format($order['price_per_cubic_meter'], 0, ',', '.') ?> VNĐ</td>
                                             <td class="text-center"><?= number_format($order['domestic_fee'], 2, '.', ',') ?> VNĐ</td>
-                                            <td class="text-center"><?= $pricemMethod ?></td>
+                                            <td class="text-center"><?= esc($pricemMethod) ?></td>
                                             <td class="text-center"><?= number_format($finalPrice, 0, ',', '.') ?> VNĐ</td>
                                             <td class="text-center">
                                                 <button class="btn btn-danger btn-sm remove-from-cart" data-order-id="<?= esc($order['order_id']) ?>">
@@ -105,6 +108,7 @@
                             </div>
 
                             <input type="hidden" name="order_ids" id="order_ids" value="<?= implode(',', array_column($orders, 'order_id')) ?>">
+                            <input type="hidden" name="sub_customer_id" id="sub_customer_id" value="<?= esc($sub_customer_id) ?>">
 
                             <!-- Nút tạo phiếu -->
                             <div class="mt-4">

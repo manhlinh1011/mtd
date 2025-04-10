@@ -38,12 +38,37 @@ class Dashboard extends BaseController
                 ->countAllResults(),
             'in_stock' => $this->orderModel
                 ->where('invoice_id IS NULL')
+                ->where('vietnam_stock_date IS NOT NULL')
                 ->countAllResults(),
             'exported' => $this->orderModel
                 ->join('invoices i', 'i.id = orders.invoice_id')
                 ->where('DATE(i.created_at)', $today)
                 ->countAllResults()
         ];
+
+        $data['totalOrdersWithZeroPrice'] = $this->orderModel
+            ->where('price_per_kg', 0)
+            ->where('price_per_cubic_meter', 0)
+            ->countAllResults();
+
+        $data['totalShippingOrdersOver6Days'] = $this->orderModel
+            ->where('vietnam_stock_date', null)
+            ->where('DATE(created_at) <', date('Y-m-d', strtotime('-6 days')))
+            ->countAllResults();
+
+        $data['totalVietnamStockOver4Days'] = $this->orderModel
+            ->where('vietnam_stock_date IS NOT NULL')
+            ->where('invoice_id IS NULL')
+            ->where('DATE(vietnam_stock_date) <', date('Y-m-d', strtotime('-4 days')))
+            ->countAllResults();
+
+
+
+        // Lấy tất cả đơn hàng của khách hàng có mã khách hàng là KO-TEN
+        $data['totalOrdersKOTEN'] = $this->orderModel
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->where('customers.customer_code', 'KO-TEN')
+            ->countAllResults();
 
         // Thống kê số bao và số lô hôm nay
         $data['packageStats'] = $this->orderModel->getPackageAndBatchStats($today);
@@ -54,8 +79,9 @@ class Dashboard extends BaseController
                 ->where('transaction_type', 'deposit')
                 ->where('DATE(created_at)', $today)
                 ->countAllResults(),
-            'payment_count' => $this->db->table('invoice_payments')
-                ->where('DATE(payment_date)', $today)
+            'payment_count' => $this->db->table('customer_transactions')
+                ->where('transaction_type', 'payment')
+                ->where('DATE(created_at)', $today)
                 ->countAllResults(),
             'deposit_amount' => $this->db->table('customer_transactions')
                 ->selectSum('amount')
@@ -64,13 +90,17 @@ class Dashboard extends BaseController
                 ->get()
                 ->getRow()
                 ->amount ?? 0,
-            'payment_amount' => $this->db->table('invoice_payments')
+            'payment_amount' => $this->db->table('customer_transactions')
                 ->selectSum('amount')
-                ->where('DATE(payment_date)', $today)
+                ->where('transaction_type', 'payment')
+                ->where('DATE(created_at)', $today)
                 ->get()
                 ->getRow()
-                ->amount ?? 0
+                ->amount ?? 0,
+
         ];
+
+
 
         // Thống kê phiếu xuất hôm nay
         $data['invoiceStats'] = [
@@ -89,11 +119,16 @@ class Dashboard extends BaseController
         // Đếm số phiếu xuất quá hạn 7 ngày
         $data['totalOverdueInvoices'] = $this->invoiceModel
             ->where('payment_status', 'unpaid')
-            ->where('created_at <=', date('Y-m-d', strtotime('-7 days')))
+            ->where('created_at <=', date('Y-m-d', strtotime('-6 days')))
             ->countAllResults();
 
         // Gán vào invoiceStats để dùng chung
         $data['invoiceStats']['overdue'] = $data['totalOverdueInvoices'];
+
+        // Đếm số phiếu xuất đang chờ giao
+        $totalPendingInvoices = $this->invoiceModel
+            ->where('shipping_confirmed_at IS NULL')
+            ->countAllResults();
 
         // Tổng quan số liệu
         $data['totalCustomers'] = $this->customerModel->countAll();
@@ -107,55 +142,55 @@ class Dashboard extends BaseController
             ->where('YEAR(created_at)', date('Y'))
             ->countAllResults();
 
-        // Lấy 5 phiếu xuất quá hạn gần đây nhất
-        $data['recentOverdueInvoices'] = $this->db->table('invoices i')
-            ->select('
-                i.*,
-                c.fullname as customer_name,
-                c.customer_code,
-                c.id as customer_id,
-                DATEDIFF(CURDATE(), DATE(i.created_at)) as days_overdue
-            ')
-            ->join('customers c', 'c.id = i.customer_id', 'left')
-            ->where('i.payment_status', 'unpaid')
-            ->where('i.created_at <=', date('Y-m-d', strtotime('-7 days')))
-            ->orderBy('i.created_at', 'DESC')
-            ->limit(5)
-            ->get()
-            ->getResultArray();
+        // // Lấy 5 phiếu xuất quá hạn gần đây nhất
+        // $data['recentOverdueInvoices'] = $this->db->table('invoices i')
+        //     ->select('
+        //         i.*,
+        //         c.fullname as customer_name,
+        //         c.customer_code,
+        //         c.id as customer_id,
+        //         DATEDIFF(CURDATE(), DATE(i.created_at)) as days_overdue
+        //     ')
+        //     ->join('customers c', 'c.id = i.customer_id', 'left')
+        //     ->where('i.payment_status', 'unpaid')
+        //     ->where('i.created_at <=', date('Y-m-d', strtotime('-7 days')))
+        //     ->orderBy('i.created_at', 'DESC')
+        //     ->limit(5)
+        //     ->get()
+        //     ->getResultArray();
 
-        // Tính total_amount cho mỗi phiếu xuất quá hạn
-        foreach ($data['recentOverdueInvoices'] as &$invoice) {
-            try {
-                $orders = $this->orderModel->where('invoice_id', $invoice['id'])->findAll();
-                $total = 0;
-                foreach ($orders as $order) {
-                    $totalWeight = floatval($order['total_weight'] ?? 0);
-                    $pricePerKg = floatval($order['price_per_kg'] ?? 0);
-                    $volume = floatval($order['volume'] ?? 0);
-                    $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
-                    $domesticFee = floatval($order['domestic_fee'] ?? 0);
-                    $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+        // // Tính total_amount cho mỗi phiếu xuất quá hạn
+        // foreach ($data['recentOverdueInvoices'] as &$invoice) {
+        //     try {
+        //         $orders = $this->orderModel->where('invoice_id', $invoice['id'])->findAll();
+        //         $total = 0;
+        //         foreach ($orders as $order) {
+        //             $totalWeight = floatval($order['total_weight'] ?? 0);
+        //             $pricePerKg = floatval($order['price_per_kg'] ?? 0);
+        //             $volume = floatval($order['volume'] ?? 0);
+        //             $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
+        //             $domesticFee = floatval($order['domestic_fee'] ?? 0);
+        //             $exchangeRate = floatval($order['exchange_rate'] ?? 0);
 
-                    $priceByWeight = $totalWeight * $pricePerKg;
-                    $priceByVolume = $volume * $pricePerCubicMeter;
-                    $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
-                    $total += $finalPrice;
-                }
+        //             $priceByWeight = $totalWeight * $pricePerKg;
+        //             $priceByVolume = $volume * $pricePerCubicMeter;
+        //             $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
+        //             $total += $finalPrice;
+        //         }
 
-                $shippingFee = floatval($invoice['shipping_fee'] ?? 0);
-                $otherFee = floatval($invoice['other_fee'] ?? 0);
-                $invoice['total_amount'] = $total + $shippingFee + $otherFee;
-            } catch (\Exception $e) {
-                log_message('error', 'Error calculating total amount for invoice ' . $invoice['id'] . ': ' . $e->getMessage());
-                $invoice['total_amount'] = 0;
-            }
-        }
+        //         $shippingFee = floatval($invoice['shipping_fee'] ?? 0);
+        //         $otherFee = floatval($invoice['other_fee'] ?? 0);
+        //         $invoice['total_amount'] = $total + $shippingFee + $otherFee;
+        //     } catch (\Exception $e) {
+        //         log_message('error', 'Error calculating total amount for invoice ' . $invoice['id'] . ': ' . $e->getMessage());
+        //         $invoice['total_amount'] = 0;
+        //     }
+        // }
 
         // Lấy danh sách đơn hàng gần đây
         $data['recentOrders'] = $this->orderModel
             ->select("orders.*, orders.id, orders.tracking_code, orders.created_at, orders.vietnam_stock_date,
-                customers.fullname as customer_name, customers.customer_code as customer_code,
+                customers.id as customer_id, customers.fullname as customer_name, customers.customer_code as customer_code,
                 i.shipping_confirmed_at, i.id as invoice_id")
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('invoices i', 'i.id = orders.invoice_id', 'left')
@@ -247,6 +282,8 @@ class Dashboard extends BaseController
         $data['shippingFeeLabels'] = json_encode($shippingFeeLabels);
         $data['shippingFeeValues'] = json_encode($shippingFeeValues);
 
-        return view('dashboard/index', $data);
+        return view('dashboard/index', array_merge($data, [
+            'totalPendingInvoices' => $totalPendingInvoices
+        ]));
     }
 }

@@ -62,6 +62,11 @@
             <div class="card mt-4">
                 <div class="card-header">
                     <h5 class="mb-0">Mã vận đơn: <strong><?= htmlspecialchars($trackingCode) ?></strong></h5>
+                    <p class="mt-2">
+                        Cân năng: <?= $weight ?> kg,<br>
+                        Kích thước: <?= $volume ?> m3,<br>
+                        Phí nội địa trung quốc: ¥<?= $domestic_fee ?>
+                    </p>
                 </div>
                 <div class="card-body">
                     <ul class="timeline">

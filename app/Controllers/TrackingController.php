@@ -15,7 +15,7 @@ class TrackingController extends Controller
 
     public function check()
     {
-        $trackingCode = $this->request->getGet('tracking_code');
+        $trackingCode = trim($this->request->getGet('tracking_code'));
 
         if (!$trackingCode) {
             return view('tracking', ['error' => 'Vui lòng nhập mã vận đơn']);
@@ -69,9 +69,16 @@ class TrackingController extends Controller
             }
         }
 
+        $weight = $order['total_weight'];
+        $volume = $order['volume'];
+        $domestic_fee = $order['domestic_fee'];
+
         return view('tracking', [
             'trackingCode' => $trackingCode,
-            'statusHistory' => $statusHistory
+            'statusHistory' => $statusHistory,
+            'weight' => $weight,
+            'volume' => $volume,
+            'domestic_fee' => $domestic_fee
         ]);
     }
 }

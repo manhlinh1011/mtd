@@ -22,7 +22,9 @@
                             <?php endif; ?>
                             <form action="/customers/update-bulk" method="POST">
                                 <?= csrf_field() ?>
-                                <a href="/customers/create" class="btn btn-primary mb-3"><i class="mdi mdi-account-plus"></i> Thêm Khách hàng</a>
+                                <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                                    <a href="/customers/create" class="btn btn-primary mb-3"><i class="mdi mdi-account-plus"></i> Thêm Khách hàng</a>
+                                <?php endif; ?>
                                 <button type="submit" class="btn btn-success mb-3"><i class="mdi mdi-sync"></i> Cập Nhật Hàng Loạt</button>
                                 <table id="datatable" class="table table-striped table-bordered">
                                     <thead>
@@ -39,7 +41,10 @@
                                             <th>Email</th>
                                             <th>Số đơn hàng</th>
                                             <th>Phiếu xuất</th>
-                                            <th>Hành động</th>
+                                            <th>Số ngày giới hạn thanh toán</th>
+                                            <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                                                <th>Hành động</th>
+                                            <?php endif; ?>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -75,12 +80,17 @@
                                                     <?php endif; ?>
                                                 </td>
                                                 <td><?= $customer['email'] ?></td>
-                                                <td class="text-center"><?= $customer['order_count'] ?></td>
+                                                <td class="text-center"><a href="<?= base_url() ?>orders?customer_code=<?= $customer['customer_code'] ?>"><?= $customer['order_count'] ?></a></td>
                                                 <td class="text-center"><?= $customer['paid_invoice_count'] ?>/<?= $customer['invoice_count'] ?></td>
-                                                <td class="text-center" style="padding: 2px;">
-                                                    <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-pencil"></i></a>
-                                                    <a href="/customers/delete/<?= $customer['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')" style="padding: 2px 8px;"><i class="mdi mdi-trash-can"></i></a>
-                                                </td>
+                                                <td class="text-center"><?= $customer['payment_limit_days'] ?></td>
+                                                <?php if (in_array(session('role'), ['Quản lý'])): ?>
+                                                    <td class="text-center" style="padding: 2px;">
+                                                        <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-pencil"></i></a>
+
+                                                        <a href="/customers/delete/<?= $customer['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')" style="padding: 2px 8px;"><i class="mdi mdi-trash-can"></i></a>
+
+                                                    </td>
+                                                <?php endif; ?>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>

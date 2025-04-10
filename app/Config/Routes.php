@@ -41,6 +41,8 @@ $routes->group('customers', function ($routes) {
     $routes->get('detail/(:num)', 'CustomerController::detail/$1');
     $routes->post('deposit/(:num)', 'CustomerController::deposit/$1');
     $routes->get('invoices/(:num)', 'CustomerController::invoices/$1');
+    $routes->get('update-balance/(:num)', 'CustomerController::updateBalance/$1');
+    $routes->post('update-balance/(:num)', 'CustomerController::updateBalance/$1');
 });
 
 $routes->group('product-types', function ($routes) {
@@ -94,6 +96,8 @@ $routes->group('invoices', function ($routes) {
     $routes->get('createInvoiceForm/(:num)', 'InvoiceController::createInvoiceForm/$1');
     $routes->post('createInvoice', 'InvoiceController::createInvoice');
     $routes->post('cart/add', 'InvoiceController::cartAdd');
+    $routes->get('cart/count', 'InvoiceController::cartCount');
+    $routes->get('cart/check', 'InvoiceController::cartCheck');
     $routes->get('create/(:num)', 'InvoiceController::create/$1');
     $routes->post('store/(:num)', 'InvoiceController::store/$1');
     $routes->get('detail/(:num)', 'InvoiceController::detail/$1');
@@ -101,12 +105,13 @@ $routes->group('invoices', function ($routes) {
     $routes->get('payments/(:num)', 'InvoiceController::viewPayments/$1');
     $routes->get('payments/create/(:num)', 'InvoiceController::createPayment/$1');
     $routes->post('payments/store/(:num)', 'InvoiceController::storePayment/$1');
-    $routes->get('payments/delete/(:num)/(:num)', 'InvoiceController::deletePayment/$1/$2');
+    $routes->post('payments/delete/(:num)/(:num)', 'InvoiceController::deletePayment/$1/$2');
     $routes->get('confirmShipping/(:num)', 'InvoiceController::confirmShipping/$1');
-    $routes->get('delete/(:num)', 'InvoiceController::delete/$1'); // Xóa phiếu xuất
+    $routes->post('delete/(:num)', 'InvoiceController::delete/$1'); // Xóa phiếu xuất
     $routes->post('reassignOrder/(:num)', 'InvoiceController::reassignOrder/$1'); // Chuyển đơn hàng
     $routes->get('overdue', 'InvoiceController::overdue');
-    $routes->get('invoices/detail/(:num)', 'InvoiceController::detail/$1');
+    $routes->get('pending', 'InvoiceController::pending');
+    $routes->get('detail/(:num)', 'InvoiceController::detail/$1');
 });
 
 $routes->post('/invoices/addPayment/(:num)', 'InvoiceController::addPayment/$1');
@@ -132,8 +137,36 @@ $routes->get('/orders/vncheck', 'OrderController::vnCheck');
 $routes->post('/orders/checkVietnamStock', 'OrderController::checkVietnamStock');
 $routes->post('/orders/updateCustomerAndStock', 'OrderController::updateCustomerAndStock');
 $routes->post('/orders/updateVietnamStockDateUI', 'OrderController::updateVietnamStockDateUI');
+$routes->get('/orders/get-sub-customers', 'OrderController::getSubCustomers');
+$routes->get('/orders/get-sub-customers-by-code', 'OrderController::getSubCustomersByCode');
 
 $routes->get('/orders/export-vn-today', 'OrderController::exportVietnamStockToday');
 
 $routes->get('packages', 'PackageController::index');
 $routes->get('packages/detail/(:segment)/(:segment)', 'PackageController::detail/$1/$2');
+
+$routes->get('transactions', 'TransactionController::index');
+$routes->get('customers/search', 'CustomerController::search');
+$routes->get('orders/china-stock', 'OrderController::chinaStock');
+$routes->get('orders/vietnam-stock', 'OrderController::vietnamStock');
+$routes->get('/invoices/export-excel/(:num)', 'InvoiceController::exportExcel/$1');
+$routes->get('/invoices/export-excel-by-filter', 'InvoiceController::exportInvoicesByFilter');
+$routes->get('/invoices/export-excel-by-select', 'InvoiceController::exportExcelBySelect');
+$routes->group('financial', function ($routes) {
+    $routes->get('/', 'FinancialController::index');
+    $routes->get('create', 'FinancialController::create');
+    $routes->post('store', 'FinancialController::store');
+    $routes->get('approve/(:num)', 'FinancialController::approve/$1');
+    $routes->get('income', 'FinancialController::income');
+    $routes->get('expense', 'FinancialController::expense');
+    $routes->get('dashboard', 'FinancialController::dashboard');
+});
+$routes->get('/customers/sub-customers', 'CustomerController::subCustomerIndex');
+$routes->get('/customers/sub-edit/(:num)', 'CustomerController::subCustomerEdit/$1');
+$routes->post('/customers/sub-edit/(:num)', 'CustomerController::subCustomerEdit/$1');
+$routes->get('/customers/sub-detail/(:num)', 'CustomerController::subCustomerDetail/$1');
+$routes->get('/customers/delete-sub/(:num)', 'CustomerController::subCustomerDelete/$1');
+$routes->get('/customers/sub-customers/create', 'CustomerController::subCustomerCreate');
+$routes->post('/customers/sub-customers/store', 'CustomerController::subCustomerStore');
+
+$routes->get('/api/sub-customers', 'ApiController::getSubCustomers');

@@ -98,6 +98,13 @@
                             </div>
                         </div>
 
+                        <div class="form-group row">
+                            <label for="payment_limit_days" class="col-sm-3 col-form-label text-right">Số ngày giới hạn thanh toán</label>
+                            <div class="col-sm-9">
+                                <input type="number" name="payment_limit_days" class="form-control" value="<?= $customer['payment_limit_days'] ?>" min="1" required>
+                            </div>
+                        </div>
+
                         <!-- Nút lưu -->
                         <div class="form-group row">
                             <div class="col-sm-9 offset-sm-3">

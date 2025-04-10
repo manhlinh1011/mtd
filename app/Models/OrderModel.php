@@ -11,6 +11,7 @@ class OrderModel extends Model
     protected $allowedFields = [
         'tracking_code',
         'customer_id',
+        'sub_customer_id',
         'product_type_id',
         'package_index',
         'package_code',
@@ -238,7 +239,7 @@ class OrderModel extends Model
             ->join('invoices i', 'i.id = orders.invoice_id', 'left')
             ->where($whereConditions)
             ->where('orders.invoice_id IS NOT NULL')
-            ->where('i.shipping_confirmed_at IS NULL')
+            ->where('i.shipping_status', 'pending')
             ->countAllResults();
     }
 
@@ -251,7 +252,7 @@ class OrderModel extends Model
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('invoices i', 'i.id = orders.invoice_id', 'left')
             ->where($whereConditions)
-            ->where('i.shipping_confirmed_at IS NOT NULL')
+            ->where('i.shipping_status', 'confirmed')
             ->countAllResults();
     }
 }

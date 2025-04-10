@@ -1,7 +1,17 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <div class="container-fluid">
-
+    <?php if (isset($error)): ?>
+        <div class="alert alert-danger">
+            <?= $error ?>
+        </div>
+    <?php endif; ?>
+    <?php if (session()->getFlashdata('success')): ?>
+        <div class="alert alert-success"><?= session()->getFlashdata('success') ?></div>
+    <?php endif; ?>
+    <?php if (session()->getFlashdata('error')): ?>
+        <div class="alert alert-danger"><?= session()->getFlashdata('error') ?></div>
+    <?php endif; ?>
     <div class="row">
         <div class="col-12">
             <div>
@@ -12,14 +22,65 @@
     <!-- end row -->
 
     <div class="row">
-        <div class="col-12">
-            <div class="alert alert-danger">
-                <i class="fa fa-exclamation-triangle"></i> Lưu ý: Đang có <span class="badge bg-danger"><?= $totalOverdueInvoices ?></span> phiếu xuất quá hạn 7 ngày.
-                <a href="<?= base_url('invoices/overdue') ?>" class="btn btn-danger btn-sm float-end"> Xem chi tiết</a>
+        <?php if ($totalOverdueInvoices > 0): ?>
+
+            <div class="col-6">
+                <div class="alert alert-danger">
+                    Lưu ý: Có <span class="badge bg-danger px-2 py-1"><?= $totalOverdueInvoices ?></span> phiếu xuất quá hạn 7 ngày.
+                    <a href="<?= base_url('invoices/overdue') ?>" class="btn btn-danger float-end px-2 py-0 mb-1"> Xem chi tiết</a>
+
+
+                </div>
             </div>
-        </div>
+
+        <?php endif; ?>
+        <!-- Thông tin thống kê -->
+        <?php if ($totalPendingInvoices > 0): ?>
+            <div class="col-6">
+                <div class="alert alert-warning">
+                    Lưu ý: Có <span class="badge bg-warning px-2 py-1"><?= $totalPendingInvoices ?></span> phiếu xuất đang chờ giao.
+                    <a href="<?= base_url('invoices/pending') ?>" class="btn btn-warning float-end px-2 py-0 mb-1"> Xem chi tiết</a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+
+
+        <?php if ($totalShippingOrdersOver6Days > 0): ?>
+            <div class="col-6">
+                <div class="alert alert-warning">
+                    Lưu ý: Có <span class="badge bg-warning px-2 py-1"><?= $totalShippingOrdersOver6Days ?></span> đơn hàng quá 6 ngày chưa về đến kho Việt Nam.
+                    <a href="<?= base_url('orders/china-stock') ?>" class="btn btn-warning float-end px-2 py-0 mb-1"> Xem chi tiết</a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($totalVietnamStockOver4Days > 0): ?>
+            <div class="col-6">
+                <div class="alert alert-warning">
+                    Lưu ý: Có <span class="badge bg-warning px-2 py-1"><?= $totalVietnamStockOver4Days ?></span> đơn hàng về kho Việt Nam quá 4 ngày chưa giao.
+                    <a href="<?= base_url('orders/vietnam-stock') ?>" class="btn btn-warning float-end px-2 py-0 mb-1"> Xem chi tiết</a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($totalOrdersWithZeroPrice > 0): ?>
+            <div class="col-6">
+                <div class="alert alert-info">
+                    Lưu ý: Có <span class="badge bg-info px-2 py-1"><?= $totalOrdersWithZeroPrice ?></span> đơn hàng có giá cân nặng và giá khối bằng 0. Cần cập nhật lại giá trị.
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($totalOrdersKOTEN > 0): ?>
+            <div class="col-6">
+                <div class="alert alert-info">
+                    Lưu ý: Có <span class="badge bg-info px-2 py-1"><?= $totalOrdersKOTEN ?></span> đơn hàng của khách hàng có mã khách hàng là KO-TEN.
+                    <a href="<?= base_url('orders?customer_code=KO-TEN') ?>" class="btn btn-info float-end px-2 py-0 mb-1"> Xem chi tiết</a>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
-    <!-- Thông tin thống kê -->
     <div class="row">
         <div class="col-md-3">
             <div class="card  bg-primary">
@@ -58,7 +119,7 @@
     <div class="row mt-2">
         <div class="col-3">
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">Thống kê đơn hàng hôm nay</div>
+                <div class="card-header bg-secondary text-white"><i class="mdi mdi-cart-outline"></i> Thống kê đơn hàng hôm nay</div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Nhập kho trung quốc:</span>
@@ -84,7 +145,7 @@
         </div>
         <div class="col-3">
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">Thống kê phiếu xuất hôm nay</div>
+                <div class="card-header bg-secondary text-white"><i class="mdi mdi-file-document-outline"></i> Thống kê phiếu xuất hôm nay</div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Phiếu xuất tạo mới:</span>
@@ -110,7 +171,7 @@
         </div>
         <div class="col-3">
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">Thống kê giao dịch</div>
+                <div class="card-header bg-secondary text-white"><i class="mdi mdi-cash-multiple"></i> Thống kê giao dịch</div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Số lần nạp tiền:</span>
@@ -136,7 +197,7 @@
         </div>
         <div class="col-3">
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">Thống kê số bao</div>
+                <div class="card-header bg-secondary text-white"><i class="mdi mdi-package-variant"></i> Thống kê số bao</div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Tổng số bao:</span>
@@ -202,7 +263,7 @@
                                     <tr>
                                         <td class="text-center"><?= $order['id'] ?></td>
                                         <td class="text-center"><?= $order['tracking_code'] ?></td>
-                                        <td class="text-center"><a href="<?= base_url('/customers/detail/') ?>"><?= $order['customer_code'] ?> (<?= $order['customer_name'] ?>)</a></td>
+                                        <td class="text-center"><a href="<?= base_url('/customers/detail/' . $order['customer_id']) ?>"><?= $order['customer_code'] ?> (<?= $order['customer_name'] ?>)</a></td>
                                         <td class="text-center"><?= timeAgo($order['created_at']) ?></td>
                                         <td class="text-center">
                                             <span class="badge 

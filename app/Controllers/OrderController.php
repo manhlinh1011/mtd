@@ -18,7 +18,6 @@ class OrderController extends BaseController
         $this->productTypeModel = new ProductTypeModel();
     }
 
-    // Trong phương thức index()
     public function index()
     {
         $perPage = 30; // Số lượng bản ghi mỗi trang
@@ -31,6 +30,9 @@ class OrderController extends BaseController
             'to_date' => $this->request->getGet('to_date')
         ];
 
+        // Lấy thông tin mã phụ từ GET
+        $subCustomerId = $this->request->getGet('sub_customer_id') ?? 'ALL';
+
         // Lấy thống kê đơn hàng
         $data['orderStats'] = $this->orderModel->getOrderStatistics($filters);
 
@@ -41,10 +43,12 @@ class OrderController extends BaseController
               customers.customer_code AS customer_code, 
               product_types.name AS product_type_name, 
               i.shipping_confirmed_at, 
-              i.id AS invoice_id')
+              i.id AS invoice_id,
+              sub_customers.sub_customer_code')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
             ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
             ->orderBy('orders.id', 'DESC');
 
         // Thêm điều kiện tìm kiếm cho danh sách
@@ -54,6 +58,17 @@ class OrderController extends BaseController
 
         if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
             $query->where('customers.customer_code', $filters['customer_code']);
+
+            // Kiểm tra nếu có lọc theo mã phụ
+            if ($subCustomerId !== 'ALL') {
+                if ($subCustomerId === 'NONE') {
+                    // Lọc các đơn hàng không có mã phụ
+                    $query->where('orders.sub_customer_id IS NULL');
+                } else {
+                    // Lọc theo mã phụ cụ thể
+                    $query->where('orders.sub_customer_id', $subCustomerId);
+                }
+            }
         }
 
         if (!empty($filters['from_date'])) {
@@ -77,6 +92,7 @@ class OrderController extends BaseController
         $data['customer_code'] = $filters['customer_code'];
         $data['from_date'] = $filters['from_date'];
         $data['to_date'] = $filters['to_date'];
+        $data['sub_customer_id'] = $subCustomerId;
 
         return view('orders/index', $data);
     }
@@ -130,6 +146,8 @@ class OrderController extends BaseController
                 'order_data' => $order
             ]);
 
+            $trackingCode = $order['tracking_code'];
+
             // Xóa đơn hàng
             $orderModel->delete($orderId);
 
@@ -140,7 +158,7 @@ class OrderController extends BaseController
                 'action_type' => 'delete',
                 'created_by' => session()->get('user_id'),
                 'details' => $details,
-                'notes' => "Xóa đơn hàng #{$orderId}."
+                'notes' => "Xóa đơn hàng #{$orderId} - Mã vận chuyển: {$trackingCode}"
             ]);
 
             // Lấy URL hiện tại từ request trước khi xóa
@@ -295,10 +313,11 @@ class OrderController extends BaseController
     {
         $orderModel = new OrderModel();
         $invoiceModel = new \App\Models\InvoiceModel();
+        $subCustomerModel = new \App\Models\SubCustomerModel();
 
         // Lấy thông tin đơn hàng
         $order = $orderModel
-            ->select('orders.*, invoices.status as invoice_status, invoices.payment_status as invoice_payment_status, invoices.shipping_status as invoice_shipping_status, invoices.id as invoice_id')
+            ->select('orders.*, invoices.payment_status as invoice_payment_status, invoices.shipping_status as invoice_shipping_status, invoices.id as invoice_id')
             ->join('invoices', 'invoices.id = orders.invoice_id', 'left')
             ->find($id);
 
@@ -306,6 +325,9 @@ class OrderController extends BaseController
             return redirect()->to('/orders')->with('error', 'Đơn hàng không tồn tại.');
         }
 
+        // Lấy danh sách mã phụ cho khách hàng hiện tại
+        $subCustomers = $subCustomerModel->where('customer_id', $order['customer_id'])->findAll();
+        $hasSubCustomers = !empty($subCustomers);
 
         // Lịch sử trạng thái đơn hàng (timeline giống trang tracking)
         $statusHistory = [];
@@ -348,18 +370,10 @@ class OrderController extends BaseController
                     ];
                 }
 
-                // Nếu phiếu xuất đã thanh toán, lấy thông tin người xác nhận thanh toán từ bảng invoice_payments
+                // Nếu phiếu xuất đã thanh toán, cung cấp thông tin thanh toán mặc định
                 if ($invoiceDetails['payment_status'] === 'paid') {
-                    $invoicePaymentModel = new \App\Models\InvoicePaymentModel();
-                    $paymentInfo = $invoicePaymentModel
-                        ->select('invoice_payments.payment_date, users.fullname as payment_confirmer_name')
-                        ->join('users', 'users.id = invoice_payments.created_by', 'left')
-                        ->where('invoice_payments.invoice_id', $order['invoice_id'])
-                        ->orderBy('invoice_payments.payment_date', 'DESC')
-                        ->first();
-
-                    $invoiceDetails['payment_confirmer_name'] = $paymentInfo['payment_confirmer_name'] ?? 'N/A';
-                    $invoiceDetails['payment_date'] = $paymentInfo['payment_date'] ?? null;
+                    $invoiceDetails['payment_confirmer_name'] = 'Không có thông tin';
+                    $invoiceDetails['payment_date'] = $invoiceDetails['updated_at'] ?? $invoiceDetails['created_at'];
                 }
             }
         }
@@ -385,6 +399,8 @@ class OrderController extends BaseController
             'invoiceDetails' => $invoiceDetails,
             'totalOrderValue' => $totalOrderValue,
             'orderValueError' => $orderValueError, // Truyền thông báo lỗi
+            'subCustomers' => $subCustomers,
+            'hasSubCustomers' => $hasSubCustomers
         ];
 
         return view('orders/edit', $data);
@@ -413,7 +429,7 @@ class OrderController extends BaseController
 
             // Kiểm tra trạng thái thanh toán của phiếu xuất
             if ($invoice['payment_status'] === 'paid') {
-                return redirect()->to('/orders')->with('error', 'Không thể sửa đơn hàng vì phiếu xuất đã được thanh toán.');
+                return redirect()->to('orders/edit/' . $id)->with('error', 'Không thể sửa đơn hàng vì phiếu xuất đã được thanh toán.');
             }
         }
 
@@ -423,6 +439,7 @@ class OrderController extends BaseController
             'product_type_id' => $this->request->getPost('product_type_id'),
             'quantity' => $this->request->getPost('quantity'),
             'package_code' => $this->request->getPost('package_code'),
+            'order_code' => $this->request->getPost('order_code'),
             'total_weight' => $this->request->getPost('total_weight'),
             'price_per_kg' => $this->request->getPost('price_per_kg'),
             'price_per_cubic_meter' => $this->request->getPost('price_per_cubic_meter'),
@@ -432,7 +449,17 @@ class OrderController extends BaseController
             'length' => $this->request->getPost('length'),
             'width' => $this->request->getPost('width'),
             'height' => $this->request->getPost('height'),
+            'notes' => $this->request->getPost('notes'),
         ];
+
+        // Thêm mã phụ nếu được chọn
+        $subCustomerId = $this->request->getPost('sub_customer_id');
+        if (!empty($subCustomerId)) {
+            $data['sub_customer_id'] = $subCustomerId;
+        } else {
+            // Nếu không chọn mã phụ, đặt là NULL
+            $data['sub_customer_id'] = null;
+        }
 
         // Cập nhật thông tin
         $this->orderModel->update($id, $data);
@@ -670,10 +697,28 @@ class OrderController extends BaseController
                     $this->orderModel->insert($data);
                     $imported++;
                     $existingCodes[] = $data['tracking_code']; // Cập nhật danh sách
+                    $successfulTrackingCodes[] = $data['tracking_code'];
                 } else {
                     $failed++;
                     $failureReasons[$index + 3] = implode(', ', $errors); // +3 vì bỏ qua 2 dòng tiêu đề và index bắt đầu từ 0
                 }
+            }
+
+            // Ghi log nếu có đơn hàng được import thành công
+            if ($imported > 0) {
+                $systemLogModel = new \App\Models\SystemLogModel();
+                $logDetails = [
+                    'imported_count' => $imported,
+                    'tracking_codes' => $successfulTrackingCodes
+                ];
+                $systemLogModel->addLog([
+                    'entity_type' => 'order',
+                    'entity_id' => 0, // Không có ID cụ thể vì là import hàng loạt
+                    'action_type' => 'import',
+                    'created_by' => session()->get('user_id'),
+                    'details' => json_encode($logDetails),
+                    'notes' => "Import $imported đơn hàng từ file Excel."
+                ]);
             }
 
             // Xóa file tạm sau khi xử lý
@@ -681,7 +726,7 @@ class OrderController extends BaseController
                 unlink($tempFilePath);
             }
 
-            $message = "Tổng số bản ghi: " . (count($rows) + 2) . ". <br>";
+            $message = "Tổng số bản ghi: " . (count($rows)) . ". <br>";
             $message .= "Import thành công: $imported đơn hàng. <br>";
             $message .= "Thất bại: $failed bản ghi.<br><hr/>";
             if (!empty($failureReasons)) {
@@ -739,32 +784,101 @@ class OrderController extends BaseController
             if ($order['vietnam_stock_date']) {
                 $result = [
                     'status' => 'in_vn',
-                    'order' => $order, // Thêm order vào result
-                    'statusHistory' => $statusHistory
+                    'order' => $order,
+                    'statusHistory' => $statusHistory,
+                    'notes' => $order['notes']
                 ];
             } else {
+                // Khởi tạo SubCustomerModel để lấy danh sách mã phụ nếu cần
+                $subCustomerModel = new \App\Models\SubCustomerModel();
+
                 $result = [
                     'status' => 'not_in_vn',
                     'order' => $order,
                     'statusHistory' => $statusHistory,
                     'isKHOTM' => ($order['customer_code'] === 'KHOTM'),
-                    'customers' => $this->customerModel->findAll()
+                    'customers' => $this->customerModel->findAll(),
+                    'notes' => $order['notes']
                 ];
+
+                // Nếu không phải KHOTM và khách hàng đó có mã phụ, thêm danh sách mã phụ
+                if ($order['customer_code'] !== 'KHOTM') {
+                    $subCustomers = $subCustomerModel->where('customer_id', $order['customer_id'])->findAll();
+                    $result['hasSubCustomers'] = !empty($subCustomers);
+                    $result['subCustomers'] = $subCustomers;
+                    $result['sub_customer_id'] = $order['sub_customer_id']; // Truyền sub_customer_id hiện tại
+                }
             }
         }
 
         return view('orders/vncheck_result', array_merge($result, ['trackingCode' => $trackingCode]));
     }
 
+    // Thêm phương thức API để lấy danh sách khách hàng phụ theo khách hàng chính
+    public function getSubCustomers()
+    {
+        $customerId = $this->request->getGet('customer_id');
+
+        if (!$customerId) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'message' => 'Không có ID khách hàng',
+                'data' => []
+            ]);
+        }
+
+        $subCustomerModel = new \App\Models\SubCustomerModel();
+        $subCustomers = $subCustomerModel->where('customer_id', $customerId)->findAll();
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'message' => 'Lấy danh sách mã phụ thành công',
+            'data' => $subCustomers
+        ]);
+    }
+
+    // Thêm phương thức API để lấy danh sách khách hàng phụ theo mã khách hàng chính
+    public function getSubCustomersByCode()
+    {
+        $customerCode = $this->request->getGet('customer_code');
+
+        if (!$customerCode) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'message' => 'Không có mã khách hàng',
+                'data' => []
+            ]);
+        }
+
+        // Lấy ID khách hàng từ mã khách hàng
+        $customer = $this->customerModel->where('customer_code', $customerCode)->first();
+        if (!$customer) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'message' => 'Không tìm thấy khách hàng',
+                'data' => []
+            ]);
+        }
+
+        $subCustomerModel = new \App\Models\SubCustomerModel();
+        $subCustomers = $subCustomerModel->where('customer_id', $customer['id'])->findAll();
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'message' => 'Lấy danh sách mã phụ thành công',
+            'data' => $subCustomers
+        ]);
+    }
+
     public function updateCustomerAndStock()
     {
         try {
-            // Lấy dữ liệu từ POST
             $orderId = $this->request->getPost('order_id');
             $customerId = $this->request->getPost('customer_id');
+            $subCustomerId = $this->request->getPost('sub_customer_id'); // Lấy ID mã phụ nếu có
             $trackingCode = $this->request->getPost('tracking_code');
+            $notes = $this->request->getPost('notes'); // Nhận ghi chú từ form
 
-            // Kiểm tra dữ liệu đầu vào
             if (empty($orderId) || !is_numeric($orderId) || empty($customerId) || !is_numeric($customerId)) {
                 return $this->response->setJSON([
                     'status' => 400,
@@ -772,7 +886,6 @@ class OrderController extends BaseController
                 ]);
             }
 
-            // Kiểm tra đơn hàng tồn tại
             $order = $this->orderModel->find($orderId);
             if (!$order) {
                 return $this->response->setJSON([
@@ -781,7 +894,6 @@ class OrderController extends BaseController
                 ]);
             }
 
-            // Kiểm tra khách hàng tồn tại
             $customer = $this->customerModel->find($customerId);
             if (!$customer) {
                 return $this->response->setJSON([
@@ -790,22 +902,29 @@ class OrderController extends BaseController
                 ]);
             }
 
-            // Chuẩn bị dữ liệu cập nhật
             $updateData = [
                 'customer_id' => $customerId,
-                'vietnam_stock_date' => date('Y-m-d H:i:s')
+                'vietnam_stock_date' => date('Y-m-d H:i:s'),
+                'notes' => $notes // Cập nhật ghi chú mới
             ];
 
-            // Cập nhật giá nếu cần
+            // Nếu có mã phụ được chọn, cập nhật thông tin mã phụ
+            if (!empty($subCustomerId) && is_numeric($subCustomerId)) {
+                $subCustomerModel = new \App\Models\SubCustomerModel();
+                $subCustomer = $subCustomerModel->find($subCustomerId);
+
+                if ($subCustomer && $subCustomer['customer_id'] == $customerId) {
+                    $updateData['sub_customer_id'] = $subCustomerId;
+                }
+            }
+
             if ($order['price_per_kg'] == 0 && $order['price_per_cubic_meter'] == 0) {
                 $updateData['price_per_kg'] = $customer['price_per_kg'] ?? 0;
                 $updateData['price_per_cubic_meter'] = $customer['price_per_cubic_meter'] ?? 0;
             }
 
-            // Thực hiện cập nhật
             $result = $this->orderModel->update($orderId, $updateData);
             if ($result) {
-                // Tạo lịch sử trạng thái với thời gian đã định dạng
                 $statusHistory = [
                     ['time' => date('d/m/Y H:i', strtotime($order['created_at'])), 'status' => 'Nhập kho Trung Quốc'],
                     ['time' => date('d/m/Y H:i', strtotime(date('Y-m-d H:i:s'))), 'status' => 'Nhập kho Việt Nam']
@@ -816,7 +935,8 @@ class OrderController extends BaseController
                     'message' => 'Cập nhật thành công.',
                     'order_id' => $orderId,
                     'trackingCode' => $trackingCode,
-                    'statusHistory' => $statusHistory
+                    'statusHistory' => $statusHistory,
+                    'notes' => $notes // Trả về ghi chú mới
                 ]);
             } else {
                 return $this->response->setJSON([
@@ -831,6 +951,235 @@ class OrderController extends BaseController
             ]);
         }
     }
+
+
+
+    public function exportVietnamStockToday()
+    {
+        // Đặt múi giờ Việt Nam (nếu chưa cấu hình toàn cục)
+        date_default_timezone_set('Asia/Ho_Chi_Minh');
+        $today = date('Y-m-d'); // Ví dụ: "2025-04-07"
+
+        // Truy vấn các đơn hàng có vietnam_stock_date là hôm nay
+        $query = $this->orderModel
+            ->select('orders.*, 
+              customers.fullname AS customer_name, 
+              customers.customer_code AS customer_code, 
+              product_types.name AS product_type_name, 
+              invoices.shipping_status AS invoice_shipping_status, 
+              invoices.id AS invoice_id,
+              sub_customers.sub_customer_code') // Thêm sub_customer_code
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+            ->join('invoices', 'invoices.id = orders.invoice_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left') // Join với bảng sub_customers
+            ->where("DATE(orders.vietnam_stock_date)", $today)
+            ->orderBy('orders.id', 'DESC');
+
+        $orders = $query->findAll();
+
+        if (empty($orders)) {
+            session()->setFlashdata('error', 'Không có đơn hàng nào nhập kho Việt Nam hôm nay (' . $today . ').');
+            return redirect()->to('/orders');
+        }
+
+        // Sử dụng PhpSpreadsheet để tạo file Excel
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Đặt tiêu đề với các cột riêng cho Dài, Rộng, Cao, thêm cột "Mã phụ" sau "Mã vận chuyển"
+        $headers = [
+            'ID',
+            'Nhập TQ',
+            'Nhập VN',
+            'Mã vận chuyển',
+            'Mã phụ', // Thêm cột Mã phụ
+            'Mã lô',
+            'Mã bao',
+            'Khách hàng',
+            'Hàng',
+            'SL',
+            'Số kg',
+            'Dài',
+            'Rộng',
+            'Cao',
+            'Khối',
+            'Giá kg',
+            'Giá Khối',
+            'Phí tệ',
+            'Tỷ giá',
+            'Phí TQ',
+            'Tổng',
+            'TT',
+            'Trạng thái'
+        ];
+        $sheet->fromArray($headers, null, 'A1');
+
+        // Thêm dữ liệu
+        $row = 2;
+        foreach ($orders as $order) {
+            $gia_theo_cannang = $order['total_weight'] * $order['price_per_kg'];
+            $gia_theo_khoi = $order['volume'] * $order['price_per_cubic_meter'];
+            $gia_cuoi_cung = max($gia_theo_cannang, $gia_theo_khoi);
+            $cach_tinh_gia = ($gia_theo_khoi > $gia_theo_cannang) ? 'TT' : 'KG';
+            $gianoidia_trung = $order['domestic_fee'] * $order['exchange_rate'];
+
+            $status = $order['invoice_id'] === null ? 'Tồn kho' : ($order['invoice_shipping_status'] === 'pending' ? 'Đang xuất' : 'Đã xuất');
+
+            // Ghi các giá trị khác bằng fromArray, để trống cột "Mã vận chuyển"
+            $sheet->fromArray([
+                $order['id'],
+                date('Y-m-d', strtotime($order['created_at'])),
+                $order['vietnam_stock_date'],
+                null, // Để trống cột "Mã vận chuyển", sẽ ghi riêng bằng setValueExplicit
+                $order['sub_customer_code'] ?? '', // Cột Mã phụ, nếu không có thì để trống
+                $order['order_code'],
+                $order['package_code'],
+                $order['customer_code'],
+                $order['product_type_name'],
+                $order['quantity'],
+                $order['total_weight'],
+                $order['length'],       // Cột Dài
+                $order['width'],        // Cột Rộng
+                $order['height'],       // Cột Cao
+                $order['volume'],
+                $order['price_per_kg'],
+                $order['price_per_cubic_meter'],
+                $order['domestic_fee'],
+                $order['exchange_rate'],
+                $gianoidia_trung,
+                $gianoidia_trung + $gia_cuoi_cung,
+                $cach_tinh_gia,
+                $status
+            ], null, "A$row");
+
+            // Ghi giá trị tracking_code bằng setValueExplicit để đảm bảo là text
+            if (!empty($order['tracking_code'])) {
+                $sheet->getCell('D' . $row)
+                    ->setValueExplicit(
+                        $order['tracking_code'],
+                        \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+                    );
+            }
+
+            // Định dạng cột "Mã vận chuyển" (cột D) là Text
+            $sheet->getCell('D' . $row)->getStyle()->getNumberFormat()->setFormatCode('@');
+
+            $row++;
+        }
+
+        // Định dạng toàn bộ cột "Mã vận chuyển" (cột D) là Text
+        $lastRow = $sheet->getHighestRow();
+        $sheet->getStyle('D2:D' . $lastRow)->getNumberFormat()->setFormatCode('@');
+
+        // Định dạng cột "Khối" (cột O) để hiển thị 3 chữ số sau dấu phẩy
+        $sheet->getStyle('O2:O' . $lastRow)
+            ->getNumberFormat()
+            ->setFormatCode('0.000');
+
+        // Tự động điều chỉnh độ rộng cột
+        foreach (range('A', 'W') as $columnID) { // Cập nhật range từ A đến W vì đã thêm 1 cột
+            $sheet->getColumnDimension($columnID)->setAutoSize(true);
+        }
+
+        // Tạo file Excel và tải xuống
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filename = 'DonHang_NhapKho_VN_' . $today . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit();
+    }
+
+    public function chinaStock()
+    {
+        $perPage = 30; // Số lượng bản ghi mỗi trang
+
+        // Lấy thông tin tìm kiếm từ GET
+        $days = $this->request->getGet('days') ?? 6;
+        $customerCode = $this->request->getGet('customer_code') ?? 'ALL';
+
+        // Tính ngày giới hạn dựa trên số ngày
+        $dateLimit = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+
+        // Cấu hình query cho danh sách đơn hàng chưa về kho VN
+        $query = $this->orderModel
+            ->select('orders.*, 
+            customers.fullname AS customer_name, 
+            customers.customer_code AS customer_code, 
+            product_types.name AS product_type_name, 
+            i.shipping_confirmed_at, 
+            i.id AS invoice_id')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+            ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+            ->where('orders.vietnam_stock_date IS NULL')
+            ->where('orders.created_at <=', $dateLimit)
+            ->orderBy('orders.id', 'ASC');
+
+        // Thêm điều kiện lọc theo mã khách hàng
+        if ($customerCode !== 'ALL') {
+            $query->where('customers.customer_code', $customerCode);
+        }
+
+        // Lấy dữ liệu phân trang
+        $data['orders'] = $query->paginate($perPage);
+        $data['pager'] = $this->orderModel->pager;
+
+        // Lấy danh sách khách hàng cho dropdown
+        $data['customers'] = $this->customerModel->select('customer_code, fullname')->orderBy('customer_code', 'ASC')->findAll();
+
+        // Truyền giá trị tìm kiếm vào View
+        $data['days'] = $days;
+        $data['customer_code'] = $customerCode;
+
+        return view('orders/china_stock', $data);
+    }
+
+    public function vietnamStock()
+    {
+        $perPage = 30; // Số lượng bản ghi mỗi trang
+
+        // Lấy thông tin tìm kiếm từ GET
+        $days = $this->request->getGet('days') ?? 4; // Mặc định 4 ngày
+        $customerCode = $this->request->getGet('customer_code') ?? 'ALL';
+
+        // Tính ngày giới hạn dựa trên số ngày
+        $dateLimit = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+
+        // Cấu hình query cho danh sách đơn hàng đã về kho VN nhưng chưa giao
+        $query = $this->orderModel
+            ->select('orders.*, 
+            customers.fullname AS customer_name, 
+            customers.customer_code AS customer_code, 
+            product_types.name AS product_type_name')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+            ->where('orders.vietnam_stock_date IS NOT NULL') // Đã về kho VN
+            ->where('orders.invoice_id IS NULL') // Chưa giao (không có invoice)
+            ->where('orders.vietnam_stock_date <=', $dateLimit) // Lọc theo số ngày
+            ->orderBy('orders.vietnam_stock_date', 'ASC');
+
+        // Thêm điều kiện lọc theo mã khách hàng
+        if ($customerCode !== 'ALL') {
+            $query->where('customers.customer_code', $customerCode);
+        }
+
+        // Lấy dữ liệu phân trang
+        $data['orders'] = $query->paginate($perPage);
+        $data['pager'] = $this->orderModel->pager;
+
+        // Lấy danh sách khách hàng cho dropdown
+        $data['customers'] = $this->customerModel->select('customer_code, fullname')->orderBy('customer_code', 'ASC')->findAll();
+
+        // Truyền giá trị tìm kiếm vào View
+        $data['days'] = $days;
+        $data['customer_code'] = $customerCode;
+
+        return view('orders/vietnam_stock', $data);
+    }
+
 
     public function updateVietnamStockDateUI()
     {
@@ -895,111 +1244,5 @@ class OrderController extends BaseController
             }
             return '<div class="alert alert-info">Không có bản ghi nào cần cập nhật (ngày nhập kho đã tồn tại).</div>';
         }
-    }
-
-    public function exportVietnamStockToday()
-    {
-        // Đặt múi giờ Việt Nam (nếu chưa cấu hình toàn cục)
-        date_default_timezone_set('Asia/Ho_Chi_Minh');
-        $today = date('Y-m-d'); // Ví dụ: "2025-03-17"
-
-        // Truy vấn các đơn hàng có vietnam_stock_date là hôm nay
-        $query = $this->orderModel
-            ->select('orders.*, 
-                  customers.fullname AS customer_name, 
-                  customers.customer_code AS customer_code, 
-                  product_types.name AS product_type_name, 
-                  invoices.shipping_status AS invoice_shipping_status, 
-                  invoices.id AS invoice_id')
-            ->join('customers', 'customers.id = orders.customer_id', 'left')
-            ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
-            ->join('invoices', 'invoices.id = orders.invoice_id', 'left')
-            ->where("DATE(orders.vietnam_stock_date)", $today)
-            ->orderBy('orders.id', 'DESC');
-
-        $orders = $query->findAll();
-
-        if (empty($orders)) {
-            session()->setFlashdata('error', 'Không có đơn hàng nào nhập kho Việt Nam hôm nay (' . $today . ').');
-            return redirect()->to('/orders');
-        }
-
-        // Sử dụng PhpSpreadsheet để tạo file Excel
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        // Đặt tiêu đề với các cột riêng cho Dài, Rộng, Cao
-        $headers = [
-            'ID',
-            'Nhập TQ',
-            'Nhập VN',
-            'Mã vận chuyển',
-            'Mã lô',
-            'Mã bao',
-            'Khách hàng',
-            'Hàng',
-            'SL',
-            'Số kg',
-            'Dài',
-            'Rộng',
-            'Cao',
-            'Khối',
-            'Giá kg',
-            'Giá Khối',
-            'Phí tệ',
-            'Tỷ giá',
-            'Phí TQ',
-            'Tổng',
-            'TT',
-            'Trạng thái'
-        ];
-        $sheet->fromArray($headers, null, 'A1');
-
-        // Thêm dữ liệu
-        $row = 2;
-        foreach ($orders as $order) {
-            $gia_theo_cannang = $order['total_weight'] * $order['price_per_kg'];
-            $gia_theo_khoi = $order['volume'] * $order['price_per_cubic_meter'];
-            $gia_cuoi_cung = max($gia_theo_cannang, $gia_theo_khoi);
-            $cach_tinh_gia = ($gia_theo_khoi > $gia_theo_cannang) ? 'TT' : 'KG';
-            $gianoidia_trung = $order['domestic_fee'] * $order['exchange_rate'];
-
-            $status = $order['invoice_id'] === null ? 'Tồn kho' : ($order['invoice_shipping_status'] === 'pending' ? 'Đang xuất' : 'Đã xuất');
-
-            $sheet->fromArray([
-                $order['id'],
-                date('Y-m-d', strtotime($order['created_at'])),
-                $order['vietnam_stock_date'],
-                $order['tracking_code'],
-                $order['order_code'],
-                $order['package_code'],
-                $order['customer_code'],
-                $order['product_type_name'],
-                $order['quantity'],
-                $order['total_weight'],
-                $order['length'],       // Cột Dài
-                $order['width'],        // Cột Rộng
-                $order['height'],       // Cột Cao
-                $order['volume'],
-                $order['price_per_kg'],
-                $order['price_per_cubic_meter'],
-                $order['domestic_fee'],
-                $order['exchange_rate'],
-                $gianoidia_trung,
-                $gianoidia_trung + $gia_cuoi_cung,
-                $cach_tinh_gia,
-                $status
-            ], null, "A$row");
-            $row++;
-        }
-
-        // Tạo file Excel và tải xuống
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $filename = 'DonHang_NhapKho_VN_' . $today . '.xlsx';
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
-        exit();
     }
 }

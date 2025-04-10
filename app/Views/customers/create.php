@@ -112,6 +112,11 @@
                     <input type="number" name="price_per_cubic_meter" id="price_per_cubic_meter" class="form-control" placeholder="Nhập giá cho 1 mét khối" required>
                 </div>
 
+                <div class="form-group mb-3">
+                    <label for="payment_limit_days">Số ngày giới hạn thanh toán</label>
+                    <input type="number" name="payment_limit_days" id="payment_limit_days" class="form-control" placeholder="Nhập số ngày giới hạn thanh toán" value="15" required>
+                </div>
+
                 <div class="form-group">
                     <button type="submit" class="btn btn-primary">Thêm Khách Hàng</button>
                     <a href="/customers" class="btn btn-secondary">Quay Lại</a>

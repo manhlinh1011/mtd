@@ -13,15 +13,25 @@ class SystemLogController extends BaseController
         $systemLogModel = new \App\Models\SystemLogModel();
         $userModel = new \App\Models\UserModel();
 
-        $logs = $systemLogModel->orderBy('created_at', 'DESC')->findAll();
+        // Số bản ghi mỗi trang
+        $perPage = 30;
+
+        // Lấy dữ liệu phân trang
+        $logs = $systemLogModel
+            ->orderBy('created_at', 'DESC')
+            ->paginate($perPage);
 
         // Lấy thông tin người thực hiện
         foreach ($logs as &$log) {
             $log['created_by_user'] = $userModel->find($log['created_by']);
         }
 
+        // Tạo đối tượng pager
+        $pager = $systemLogModel->pager;
+
         return view('system_logs/index', [
-            'logs' => $logs
+            'logs' => $logs,
+            'pager' => $pager // Truyền pager vào view
         ]);
     }
 }

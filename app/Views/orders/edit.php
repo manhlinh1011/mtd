@@ -3,6 +3,11 @@
 
 <div class="container-fluid">
     <div class="row">
+        <div class="col-12 mb-3">
+            <a href="<?= base_url('orders') ?>" class="btn btn-secondary">
+                <i class="mdi mdi-arrow-left"></i> Quay lại
+            </a>
+        </div>
         <div class="col-6">
             <div class="card">
                 <div class="card-header">
@@ -42,6 +47,23 @@
                                             <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)
                                         </option>
                                     <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Mã phụ (Hiện tại với mã phụ của khách hàng được chọn) -->
+                        <div class="form-group row" id="subCustomerRow" <?= (!isset($hasSubCustomers) || !$hasSubCustomers) ? 'style="display: none;"' : '' ?>>
+                            <label for="sub_customer_id" class="col-sm-3 col-form-label text-right">Mã phụ</label>
+                            <div class="col-sm-9">
+                                <select class="form-control" id="sub_customer_id" name="sub_customer_id">
+                                    <option value="">-- Không chọn mã phụ --</option>
+                                    <?php if (isset($subCustomers) && is_array($subCustomers)): ?>
+                                        <?php foreach ($subCustomers as $subCustomer): ?>
+                                            <option value="<?= $subCustomer['id'] ?>" <?= $order['sub_customer_id'] == $subCustomer['id'] ? 'selected' : '' ?>>
+                                                <?= $subCustomer['sub_customer_code'] ?> (<?= $subCustomer['fullname'] ?>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                         </div>
@@ -121,7 +143,12 @@
                                 <input type="number" class="form-control" name="height" value="<?= $order['height'] ?>" placeholder="Cao (cm)">
                             </div>
                         </div>
-
+                        <div class="form-group row">
+                            <label for="notes" class="col-sm-3 col-form-label text-right">Ghi chú</label>
+                            <div class="col-sm-9">
+                                <textarea class="form-control" id="notes" name="notes"><?= $order['notes'] ?></textarea>
+                            </div>
+                        </div>
                         <!-- Nút lưu -->
                         <div class="form-group row">
                             <div class="col-sm-9 offset-sm-3">
@@ -290,6 +317,53 @@
                 pricePerCubicMeterInput.value = pricePerCubicMeterInput.value.replace(/\./g, '');
             }
         });
+
+        // Xử lý hiển thị và cập nhật mã phụ khi thay đổi khách hàng
+        const customerSelect = document.getElementById('customer_id');
+        const subCustomerRow = document.getElementById('subCustomerRow');
+        const subCustomerSelect = document.getElementById('sub_customer_id');
+
+        // Khi thay đổi khách hàng
+        if (customerSelect) {
+            customerSelect.addEventListener('change', function() {
+                const customerId = this.value;
+
+                // Xóa tất cả các option cũ trừ option đầu tiên
+                while (subCustomerSelect.options.length > 1) {
+                    subCustomerSelect.remove(1);
+                }
+
+                if (customerId) {
+                    // Gọi API để lấy danh sách mã phụ
+                    fetch('<?= base_url('orders/get-sub-customers') ?>?customer_id=' + customerId)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 200 && data.data.length > 0) {
+                                // Hiển thị dòng chọn mã phụ
+                                subCustomerRow.style.display = 'flex';
+
+                                // Thêm các option mới
+                                data.data.forEach(subCustomer => {
+                                    const option = document.createElement('option');
+                                    option.value = subCustomer.id;
+                                    option.textContent = `${subCustomer.sub_customer_code} (${subCustomer.fullname})`;
+                                    subCustomerSelect.appendChild(option);
+                                });
+                            } else {
+                                // Ẩn dòng chọn mã phụ nếu không có mã phụ
+                                subCustomerRow.style.display = 'none';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching sub customers:', error);
+                            subCustomerRow.style.display = 'none';
+                        });
+                } else {
+                    // Ẩn dòng chọn mã phụ nếu không chọn khách hàng
+                    subCustomerRow.style.display = 'none';
+                }
+            });
+        }
     });
 </script>
 <?= $this->endSection() ?>

@@ -38,6 +38,18 @@
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+
+                            <div class="col-md-2" id="sub_customer_filter" style="display: none;">
+                                <select id="sub_customer_id_select" name="sub_customer_id" class="form-control">
+                                    <option value="ALL" <?= $sub_customer_id === 'ALL' || empty($sub_customer_id) ? 'selected' : '' ?>>
+                                        TẤT CẢ MÃ PHỤ
+                                    </option>
+                                    <option value="NONE" <?= $sub_customer_id === 'NONE' ? 'selected' : '' ?>>
+                                        KHÔNG CÓ MÃ PHỤ
+                                    </option>
+                                </select>
+                            </div>
+
                             <!-- Lọc theo Thời Gian -->
                             <div class="col-md-2">
                                 <input type="date" id="from_date" name="from_date" class="form-control"
@@ -47,7 +59,7 @@
                                 <input type="date" id="to_date" name="to_date" class="form-control"
                                     value="<?= esc($to_date ?? '') ?>" placeholder="Đến ngày">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-2">
                                 <input type="text" id="tracking_code_input" name="tracking_code" class="form-control"
                                     placeholder="Nhập mã vận chuyển" value="<?= esc($tracking_code ?? '') ?>">
                             </div>
@@ -140,6 +152,7 @@
                                             <th>Mã lô</th>
                                             <th>Mã bao</th>
                                             <th>Khách hàng</th>
+                                            <th>Mã phụ</th>
                                             <th>Hàng</th>
                                             <th>SL</th>
                                             <th>Số kg</th>
@@ -178,7 +191,14 @@
                                                 ?>
                                                 <td class="text-center"><?= $formattedDate ?></td>
                                                 <td class="text-center"><?= $order['vietnam_stock_date'] ?></td>
-                                                <td class="text-center"><?= $order['tracking_code'] ?></td>
+                                                <td class="text-center">
+                                                    <?= $order['tracking_code'] ?>
+                                                    <?php if (!empty($order['notes'])): ?>
+                                                        <span class="badge badge-info" data-toggle="tooltip" data-placement="top" title="<?= $order['notes'] ?>">
+                                                            <i class="mdi mdi-pencil"></i>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="text-center"><?= $order['order_code'] ?></td>
                                                 <td class="text-center">
                                                     <?php if ($order['package_code']): ?>
@@ -193,6 +213,7 @@
                                                     <?php endif; ?>
                                                 </td>
                                                 <td class="text-center"><a href="<?= base_url() ?>orders?customer_code=<?= $order['customer_code'] ?>"><?= $order['customer_code'] ?></a></td>
+                                                <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
                                                 <td class="text-center"><?= $order['product_type_name'] ?></td>
                                                 <td class="text-center"><?= $order['quantity'] ?></td>
                                                 <td class="text-center"><?= $order['total_weight'] ?></td>
@@ -353,92 +374,208 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        // Lấy số lượng giỏ hàng ban đầu khi trang được tải
+        fetchCartCount();
+
         // Xử lý nút thêm vào giỏ hàng
         document.querySelectorAll(".add-to-cart").forEach(function(button) {
+            // Kiểm tra nếu đơn hàng đã có trong giỏ hàng khi tải trang
+            checkIfOrderInCart(button);
+
             button.addEventListener("click", async function(e) {
                 e.preventDefault();
                 const orderId = this.dataset.orderId;
-                const trackingCode = this.dataset.trackingCode;
-
-                // Nếu đơn hàng chưa về kho VN, hiển thị modal
-                if (trackingCode) {
-                    $(`#notInVietnamModal${orderId}`).modal('show');
-                    return;
-                }
 
                 try {
+                    const formData = new FormData();
+                    formData.append('order_id', orderId);
+
                     const response = await fetch('<?= base_url('invoices/cart/add') ?>', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
                         },
-                        body: JSON.stringify({
-                            order_id: orderId
-                        }),
+                        body: formData
                     });
 
                     const data = await response.json();
 
                     if (data.success) {
-                        showToast('Sản phẩm đã được thêm vào giỏ hàng!', 'success');
-                        updateCartCount(data.cart_count);
+                        showToast(data.message, 'success');
+                        updateCartCount(data.cart_count); // Cập nhật số lượng giỏ hàng
                         this.disabled = true;
+                        this.classList.add('added-to-cart'); // Thêm class để đánh dấu
                     } else {
-                        showToast('Thêm vào giỏ hàng thất bại: ' + data.message, 'danger');
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    showToast('Lỗi kết nối. Vui lòng thử lại.', 'danger');
-                }
-            });
-        });
-
-        // Xử lý nút xóa
-        document.querySelectorAll('.delete-btn').forEach(function(button) {
-            button.addEventListener('click', function(event) {
-                event.preventDefault();
-                const invoiceId = this.dataset.invoiceId;
-                const orderId = this.dataset.orderId;
-
-                if (invoiceId === '' || invoiceId === null) {
-                    $(`#deleteConfirmModal${orderId}`).modal('show');
-                } else {
-                    $(`#cannotDeleteModal${orderId}`).modal('show');
-                }
-            });
-        });
-
-        // Xử lý nút xác nhận xóa
-        document.querySelectorAll('.confirm-delete').forEach(function(button) {
-            button.addEventListener('click', async function() {
-                const orderId = this.dataset.orderId;
-
-                try {
-                    const response = await fetch(`/orders/delete/${orderId}`, {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
-                        },
-                    });
-
-                    if (response.redirected) {
-                        $(`#deleteConfirmModal${orderId}`).modal('hide');
-                        window.location.href = response.url;
-                    } else {
-                        const data = await response.json();
                         showToast(data.message, 'danger');
-                        $(`#deleteConfirmModal${orderId}`).modal('hide');
                     }
                 } catch (error) {
-                    console.error('Error:', error);
+                    console.error('Lỗi:', error);
                     showToast('Lỗi kết nối. Vui lòng thử lại.', 'danger');
-                    $(`#deleteConfirmModal${orderId}`).modal('hide');
                 }
             });
         });
+
+        // Xử lý nút xóa đơn hàng
+        document.querySelectorAll(".delete-btn").forEach(function(button) {
+            button.addEventListener("click", function(e) {
+                e.preventDefault();
+                const orderId = this.dataset.orderId;
+                const invoiceId = this.dataset.invoiceId;
+                const modalId = invoiceId === null ? `deleteConfirmModal${orderId}` : `cannotDeleteModal${orderId}`;
+                const modal = document.getElementById(modalId);
+
+                if (modal) {
+                    // Hiển thị modal bằng Bootstrap
+                    $(modal).modal('show');
+                }
+            });
+        });
+
+        // Xử lý nút xác nhận xóa trong modal
+        document.querySelectorAll(".confirm-delete").forEach(function(button) {
+            button.addEventListener("click", function(e) {
+                e.preventDefault();
+                const orderId = this.dataset.orderId;
+
+                // Đóng modal trước khi chuyển hướng
+                const modal = $(this).closest('.modal');
+                modal.modal('hide');
+
+                // Chuyển hướng sau khi modal đã đóng
+                setTimeout(function() {
+                    window.location.href = `<?= base_url('orders/delete') ?>/${orderId}`;
+                }, 500);
+            });
+        });
+
+        // Hàm kiểm tra nếu đơn hàng đã có trong giỏ hàng
+        async function checkIfOrderInCart(button) {
+            const orderId = button.dataset.orderId;
+
+            try {
+                const response = await fetch('<?= base_url('invoices/cart/check') ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
+                    },
+                    body: JSON.stringify({
+                        order_id: orderId
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.exists) {
+                    button.disabled = true;
+                    button.classList.add('added-to-cart');
+                }
+            } catch (error) {
+                console.error('Lỗi khi kiểm tra giỏ hàng:', error);
+            }
+        }
+
+        // Hàm lấy số lượng giỏ hàng ban đầu
+        async function fetchCartCount() {
+            try {
+                const response = await fetch('<?= base_url('invoices/cart/count') ?>', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
+                    },
+                });
+                const data = await response.json();
+                if (data.success) {
+                    updateCartCount(data.cart_count);
+                }
+            } catch (error) {
+                console.error('Lỗi khi lấy số lượng giỏ hàng:', error);
+            }
+        }
+
+        // Hàm cập nhật số lượng giỏ hàng trên giao diện
+        function updateCartCount(count) {
+            const cartCountElement = document.querySelector('#cart-count');
+            if (cartCountElement) {
+                cartCountElement.textContent = count;
+            }
+        }
+    });
+</script>
+<script>
+    $(document).ready(function() {
+        // Lấy giá trị sub_customer_id từ URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedSubCustomerId = urlParams.get('sub_customer_id') || 'ALL';
+
+        // Xử lý khi customer_code thay đổi
+        $('#customer_code_select').change(function() {
+            var customer_code = $(this).val();
+
+            // Ẩn dropdown sub_customer nếu chọn "All"
+            if (customer_code === 'ALL') {
+                $('#sub_customer_filter').hide();
+                $('#sub_customer_id_select').val('ALL');
+                return;
+            }
+
+            // Lấy danh sách sub_customer cho customer này
+            fetch('<?= base_url('orders/get-sub-customers-by-code') ?>?customer_code=' + customer_code)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.data && data.data.length > 0) {
+                        // Có sub_customers, hiển thị dropdown
+                        var subCustomerSelect = $('#sub_customer_id_select');
+                        subCustomerSelect.empty();
+
+                        // Thêm option "Tất cả"
+                        subCustomerSelect.append('<option value="ALL">TẤT CẢ MÃ PHỤ</option>');
+
+                        // Thêm option "Không có mã phụ"
+                        subCustomerSelect.append('<option value="NONE">KHÔNG CÓ MÃ PHỤ</option>');
+
+                        // Thêm các sub_customer
+                        data.data.forEach(function(sub) {
+                            subCustomerSelect.append('<option value="' + sub.id + '">' + sub.sub_customer_code + ' (' + sub.fullname + ')</option>');
+                        });
+
+                        // Hiển thị phần dropdown
+                        $('#sub_customer_filter').show();
+
+                        // Tự động chọn giá trị sub_customer_id từ URL
+                        if (selectedSubCustomerId) {
+                            subCustomerSelect.val(selectedSubCustomerId);
+                        }
+                    } else {
+                        // Không có sub_customers, ẩn dropdown
+                        $('#sub_customer_filter').hide();
+                        $('#sub_customer_id_select').val('ALL');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching sub customers:', error);
+                    $('#sub_customer_filter').hide();
+                    $('#sub_customer_id_select').val('ALL');
+                });
+        });
+
+        // Kích hoạt sự kiện change nếu đã có customer_code được chọn
+        if ($('#customer_code_select').val() !== 'ALL') {
+            $('#customer_code_select').trigger('change');
+        }
+
+        // Tự động focus vào ô tracking_code nếu có
+        if ($('#tracking_code_input').length) {
+            $('#tracking_code_input').focus();
+            $('#tracking_code_input').select();
+        }
     });
 </script>
 <?= $this->endSection() ?>

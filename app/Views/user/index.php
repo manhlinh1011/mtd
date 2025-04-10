@@ -53,7 +53,7 @@
 
                                             <td class="text-center">
                                                 <a href="/user/edit/<?= $user['id'] ?>" class="btn btn-warning btn-sm">Sửa</a>
-                                                <a href="/user/delete/<?= $user['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')">Xóa</a>
+
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

@@ -9,12 +9,15 @@
             <div class="col-6">
                 <h5>Thông tin Phiếu Xuất</h5>
                 <p><strong>Khách hàng:</strong> <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)<br>
+                    <?php if ($invoice['sub_customer_code']): ?>
+                        <strong>Mã phụ:</strong> <?= $invoice['sub_customer_code'] ?? '-' ?><br>
+                    <?php endif; ?>
                     <strong>Địa chỉ:</strong> <?= $customer['address'] ?><br>
                     <strong>Số điện thoại:</strong>
                     <?= substr($customer['phone'], 0, 3) . str_repeat('*', strlen($customer['phone']) - 6) . substr($customer['phone'], -3) ?><br>
                     <strong>Trạng thái giao hàng:</strong>
-                    <span class="badge <?= $invoice['shipping_status'] === 'pending' ? 'bg-secondary' : 'bg-success' ?>">
-                        <?= ucfirst($invoice['shipping_status']) === 'Pending' ? 'Chưa giao' : 'Đã giao' ?>
+                    <span class="badge <?= $invoice['shipping_confirmed_at'] === null ? 'bg-warning' : 'bg-success' ?>">
+                        <?= ucfirst($invoice['shipping_confirmed_at'] === null ? 'Chờ giao' : 'Đã giao') ?>
                     </span><br>
                     <strong>Trạng thái thanh toán</strong>
                     <span class="badge 
@@ -60,6 +63,7 @@
                 <tr>
                     <th>#</th>
                     <th>Mã vận chuyển</th>
+                    <th>Mã phụ</th>
                     <th>Mã bao</th>
                     <th>Hàng</th>
                     <th>Số lượng</th>
@@ -100,6 +104,7 @@
                     <tr>
                         <td class="text-center"><?= $index + 1 ?></td>
                         <td class="text-center"><?= $order['tracking_code'] ?></td>
+                        <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
                         <td class="text-center"><?= $order['package_code'] ?></td>
                         <td class="text-center"><?= $order['product_type_name'] ?></td>
                         <td class="text-center"><?= $order['quantity'] ?></td>
@@ -123,7 +128,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="4">Tổng</th>
+                    <th colspan="5">Tổng</th>
                     <th><?= number_format($totalQuantity, 0, ',', '.') ?></th>
                     <th><?= number_format($totalWeight, 2, ',', '.') ?></th>
                     <th></th>
@@ -184,7 +189,7 @@
                         <i class="mdi mdi-printer mr-1"></i> In Phiếu
                     </a>
 
-                    <?php if (in_array(session('role'), ['Nhân viên', 'Quản lý']) && $invoice['shipping_status'] !== 'confirmed'): ?>
+                    <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['shipping_confirmed_at'] === null): ?>
                         <a href="/invoices/confirmShipping/<?= $invoice['id'] ?>" class="btn btn-success">
                             <i class="mdi mdi-truck-check mr-1"></i> Xác nhận đã giao
                         </a>
@@ -389,6 +394,7 @@
                             <thead>
                                 <tr>
                                     <th>Mã vận chuyển</th>
+                                    <th>Mã phụ</th>
                                     <th>Giá / 1kg (VNĐ)</th>
                                     <th>Giá / 1m³ (VNĐ)</th>
                                     <th>Phí nội địa (Tệ)</th>
@@ -398,6 +404,7 @@
                                 <?php foreach ($orders as $order): ?>
                                     <tr>
                                         <td style="width: 300px;"><?= $order['tracking_code'] ?></td>
+                                        <td><?= $order['sub_customer_code'] ?? '-' ?></td>
                                         <td>
                                             <input type="text" name="orders[<?= $order['id'] ?>][price_per_kg]" class="form-control price-input text-center"
                                                 value="<?= number_format($order['price_per_kg'], 0, ',', '.') ?>" placeholder="Nhập giá 1kg">

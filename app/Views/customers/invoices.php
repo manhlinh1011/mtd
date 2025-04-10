@@ -60,8 +60,8 @@
                                         <td class="text-center"><?= date('d/m/Y H:i', strtotime($invoice['created_at'])) ?></td>
                                         <td class="text-center"><?= number_format($invoice['dynamic_total'] ?? 0, 0, ',', '.') ?> VNĐ</td>
                                         <td class="text-center">
-                                            <span class="badge <?= $invoice['shipping_confirmed_at'] ? 'bg-success' : 'bg-warning' ?>">
-                                                <?= $invoice['shipping_confirmed_at'] ? 'Đã giao' : 'Chờ giao' ?>
+                                            <span class="badge <?= $invoice['shipping_status'] == 'confirmed' ? 'bg-success' : 'bg-warning' ?>">
+                                                <?= $invoice['shipping_status'] == 'confirmed' ? 'Đã giao' : 'Chờ giao' ?>
                                             </span>
                                         </td>
                                         <td class="text-center">
