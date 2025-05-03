@@ -937,13 +937,15 @@ class InvoiceController extends BaseController
 
             // Lấy số dư của khách hàng bằng phương thức getCustomerBalance
             $customer = $customerModel->find($invoice['customer_id']);
-            $currentBalance = $customerModel->getCustomerBalance($invoice['customer_id']);
+            $currentBalance = (float)$customerModel->getCustomerBalance($invoice['customer_id']);
 
             // Debug để kiểm tra giá trị
             log_message('debug', "Invoice ID: {$invoiceId}, Customer ID: {$invoice['customer_id']}, Current Balance: {$currentBalance}, Total Amount: {$totalAmount}");
 
             // Kiểm tra điều kiện 2: Chưa đủ số dư
-            if ($currentBalance < $totalAmount) {
+            // Sử dụng epsilon để so sánh số thực
+            $epsilon = 0.0001;
+            if (abs($currentBalance - $totalAmount) > $epsilon && $currentBalance < $totalAmount) {
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => 'Không đủ số dư. Vui lòng nạp thêm tiền.',
