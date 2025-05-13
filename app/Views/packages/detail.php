@@ -29,6 +29,14 @@
                                     <th>Tổng số đơn:</th>
                                     <td class="text-center"><strong><?= $total_orders ?></strong></td>
                                 </tr>
+                                <tr>
+                                    <?php $tong_can_nang = 0; ?>
+                                    <?php foreach ($orders as $order): ?>
+                                        <?php $tong_can_nang += $order['total_weight']; ?>
+                                    <?php endforeach; ?>
+                                    <th>Tổng cân nặng:</th>
+                                    <td class="text-center"><strong><?= number_format($tong_can_nang, 2) ?></strong></td>
+                                </tr>
                             </table>
                         </div>
                         <div class="col-md-6">

@@ -245,4 +245,108 @@ class ApiController extends ResourceController
             ], 500);
         }
     }
+
+
+
+    /**
+     * API: Thêm đơn hàng TMDT
+     */
+    public function AddTMDT()
+    {
+        try {
+            // Kiểm tra token
+            $apiToken = $this->request->getHeaderLine('mtd');
+            $validToken = 'bh3o7gT1YgL1mOMR6H1PWBuAauPhq6io5OF0v32r5cXwl7tHoEMdS09v2dvgJgG3'; // Token cố định
+            if (!$apiToken || $apiToken !== $validToken) {
+                return $this->respond([
+                    'status' => 401,
+                    'message' => 'Xác thực thất bại',
+                    'error' => 'Token không hợp lệ'
+                ], 401);
+            }
+
+            // Nhận dữ liệu từ getPost
+            $data = $this->request->getPost();
+
+            // Kiểm tra dữ liệu đầu vào
+            if (empty($data['ma_van_don']) || empty($data['can_nang'])) {
+                return $this->respond([
+                    'status' => 400,
+                    'message' => 'Dữ liệu không hợp lệ',
+                    'error' => 'Yêu cầu ma_van_don, can_nang và ma_bao'
+                ], 400);
+            }
+
+            // Kiểm tra mã vận đơn đã tồn tại chưa
+            $existingOrder = $this->orderModel->where('tracking_code', $data['ma_van_don'])->first();
+            if ($existingOrder) {
+                return $this->respond([
+                    'status' => 400,
+                    'message' => 'Mã vận đơn đã tồn tại',
+                    'error' => 'Mã vận đơn đã được sử dụng'
+                ], 400);
+            }
+
+            // Lấy tỷ giá mới nhất từ bảng exchange_rates
+            $db = \Config\Database::connect();
+            $exchangeRate = $db->table('exchange_rates')
+                ->orderBy('id', 'DESC')
+                ->limit(1)
+                ->get()
+                ->getRowArray();
+
+            if (!$exchangeRate) {
+                return $this->respond([
+                    'status' => 500,
+                    'message' => 'Không tìm thấy tỷ giá',
+                    'error' => 'Chưa có tỷ giá nào được thiết lập'
+                ], 500);
+            }
+
+            // Lấy thông tin khách hàng để lấy giá mặc định
+            $customer = $this->customerModel->find(196);
+            if (!$customer) {
+                return $this->respond([
+                    'status' => 404,
+                    'message' => 'Không tìm thấy thông tin khách hàng',
+                    'error' => 'Customer ID không hợp lệ'
+                ], 404);
+            }
+
+            // Chuẩn bị dữ liệu đơn hàng
+            $orderData = [
+                'tracking_code' => $data['ma_van_don'],
+                'total_weight' => $data['can_nang'],
+                'package_code' => $data['ma_bao'],
+                'customer_id' => 196,
+                'product_type_id' => 27,
+                'package_index' => 0,
+                'quantity' => 1,
+                'order_code' => 'TMDT',
+                'exchange_rate' => $exchangeRate['rate'],
+                'price_per_kg' => $customer['price_per_kg'],
+                'price_per_cubic_meter' => $customer['price_per_cubic_meter'],
+                'domestic_fee' => 0, // Giá trị mặc định
+                'shipping_fee' => 0, // Giá trị mặc định
+                'volume' => 0.000, // Giá trị mặc định
+                'length' => 0, // Giá trị mặc định
+                'width' => 0, // Giá trị mặc định
+                'height' => 0 // Giá trị mặc định
+            ];
+
+            // Lưu đơn hàng
+            $this->orderModel->insert($orderData);
+
+            return $this->respond([
+                'status' => 200,
+                'message' => 'Thêm đơn hàng TMDT thành công',
+            ], 200);
+        } catch (\Exception $e) {
+            return $this->respond([
+                'status' => 500,
+                'message' => 'Lỗi trong quá trình thêm đơn hàng TMDT',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

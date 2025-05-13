@@ -24,12 +24,13 @@ class CustomerModel extends Model
 
     public function getCustomersWithOrderCount()
     {
-        // Lấy danh sách khách hàng kèm số lượng đơn hàng và thông tin phiếu xuất
+        // Lấy danh sách khách hàng kèm số lượng đơn hàng, thông tin phiếu xuất và số lượng mã phụ
         $customers = $this->select('
             customers.*, 
             (SELECT COUNT(*) FROM orders WHERE orders.customer_id = customers.id) as order_count,
             (SELECT COUNT(DISTINCT id) FROM invoices WHERE invoices.customer_id = customers.id) as invoice_count,
-            (SELECT COUNT(DISTINCT id) FROM invoices WHERE invoices.customer_id = customers.id AND invoices.payment_status = "paid") as paid_invoice_count
+            (SELECT COUNT(DISTINCT id) FROM invoices WHERE invoices.customer_id = customers.id AND invoices.payment_status = "paid") as paid_invoice_count,
+            (SELECT COUNT(*) FROM sub_customers WHERE sub_customers.customer_id = customers.id) as sub_customer_count
         ')
             ->orderBy('customers.id', 'DESC')
             ->findAll();
@@ -37,10 +38,11 @@ class CustomerModel extends Model
         // Thêm số dư động cho từng khách hàng
         foreach ($customers as &$customer) {
             $customer['dynamic_balance'] = $this->getCustomerBalance($customer['id']);
-            // Đảm bảo paid_invoice_count, invoice_count và order_count không null
+            // Đảm bảo paid_invoice_count, invoice_count, order_count và sub_customer_count không null
             $customer['paid_invoice_count'] = $customer['paid_invoice_count'] ?? 0;
             $customer['invoice_count'] = $customer['invoice_count'] ?? 0;
             $customer['order_count'] = $customer['order_count'] ?? 0;
+            $customer['sub_customer_count'] = $customer['sub_customer_count'] ?? 0;
         }
 
         return $customers;

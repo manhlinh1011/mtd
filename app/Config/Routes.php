@@ -72,6 +72,8 @@ $routes->post('/api/createorder', 'ApiController::createOrder');
 $routes->get('/api/check-tracking', 'ApiController::checkTrackingCode');
 $routes->get('/api/check-vietnam-stock', 'ApiController::checkVietnamStockStatus');
 $routes->post('/api/update-vietnam-stock', 'ApiController::updateVietnamStockDate');
+$routes->post('/api/add-tmdt', 'ApiController::AddTMDT');
+
 
 $routes->get('exchange-rates', 'ExchangeRateController::index');
 $routes->get('exchange-rates/update-form', 'ExchangeRateController::updateForm');

@@ -32,6 +32,7 @@
                                             <th>ID</th>
                                             <th>Mã khách hàng</th>
                                             <th>Họ và tên</th>
+                                            <th>Số mã phụ</th>
                                             <th>Số dư</th>
                                             <th>Giá kg</th>
                                             <th>Giá khối</th>
@@ -53,6 +54,7 @@
                                                 <td class="text-center"><?= $customer['id'] ?></td>
                                                 <td class="text-center"><a href="<?= base_url() ?>customers/detail/<?= $customer['id'] ?>"> <?= $customer['customer_code'] ?></a></td>
                                                 <td class="text-center"><?= $customer['fullname'] ?></td>
+                                                <td class="text-center"><a href="<?= base_url() ?>customers/sub-customers/<?= $customer['id'] ?>"><?= $customer['sub_customer_count'] ?></a></td>
                                                 <td class="text-center"><?= number_format($customer['dynamic_balance'], 0, ',', '.') ?></td>
                                                 <td style="text-align: center;">
                                                     <input type="text" style="width: 60px; text-align: center;"
