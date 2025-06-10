@@ -230,8 +230,22 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="amount">Số tiền</label>
+                    <div class="form-group mb-3">
+                        <label for="fund_id">Chọn quỹ nạp <span class="text-danger">*</span></label>
+                        <select name="fund_id" id="fund_id" class="form-control" required>
+                            <option value="">-- Chọn quỹ --</option>
+                            <?php foreach ($funds as $fund): ?>
+                                <option value="<?= $fund['id'] ?>">
+                                    <?= esc($fund['name']) ?>
+                                    <?php if ($fund['account_number']): ?>
+                                        (<?= esc($fund['bank_name']) ?> - <?= esc($fund['account_number']) ?>)
+                                    <?php endif; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="amount">Số tiền <span class="text-danger">*</span></label>
                         <input type="number" name="amount" id="amount" class="form-control" min="1" required>
                     </div>
                     <div class="form-group">

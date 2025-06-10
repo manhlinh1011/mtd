@@ -75,9 +75,10 @@ $role = $session->get('role');
                     <span class="menu-arrow"></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li><a href="<?= base_url('/invoices') ?>">Danh sách</a></li>
+                    <li><a href="<?= base_url('/invoices') ?>">Danh sách phiếu xuất</a></li>
                     <li><a href="<?= base_url('/invoices/cart') ?>">DS tạo phiếu</a></li>
-                    <li><a href="#">Thêm mới</a></li>
+                    <li><a href="<?= base_url('/shipping-provider') ?>">Danh sách nhà vận chuyển</a></li>
+                    <li><a href="<?= base_url('/shipping-manager') ?>">Quản lý vận chuyển</a></li>
                 </ul>
             </li>
             <li>
@@ -92,6 +93,21 @@ $role = $session->get('role');
                     <li><a href="<?= base_url() ?>invoices/overdue">Quá hạn thanh toán</a></li>
                     <li><a href="<?= base_url() ?>packages">Quản lý bao hàng</a></li>
                     <li><a href="<?= base_url() ?>financial">Quản lý thu chi</a></li>
+                    <li><a href="<?= base_url() ?>funds">Quản lý quỹ</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript: void(0);">
+                    <i class="mdi mdi-account-group"></i>
+                    <span> Cộng tác viên</span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li><a href="<?= base_url() ?>affiliate-mapping">Danh sách Mapping</a></li>
+                    <li><a href="<?= base_url() ?>affiliate-pricing">Danh sách Bảng giá</a></li>
+                    <li><a href="<?= base_url() ?>affiliate-mapping/create">Thêm mới mapping</a></li>
+                    <li><a href="<?= base_url() ?>affiliate-pricing/create">Thêm mới bảng giá</a></li>
+                    <li><a href="<?= base_url() ?>affiliate-commission">Danh sách hoa hồng</a></li>
                 </ul>
             </li>
             <li>

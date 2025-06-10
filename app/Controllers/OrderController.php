@@ -6,16 +6,18 @@ use App\Models\OrderModel;
 use App\Models\CustomerModel;
 use App\Models\ProductTypeModel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Config\WebhookConfig;
 
 class OrderController extends BaseController
 {
-    protected $orderModel, $customerModel, $productTypeModel;
+    protected $orderModel, $customerModel, $productTypeModel, $webhookConfig;
 
     public function __construct()
     {
         $this->orderModel = new OrderModel();
         $this->customerModel = new CustomerModel();
         $this->productTypeModel = new ProductTypeModel();
+        $this->webhookConfig = new WebhookConfig();
     }
 
     public function index()
@@ -237,13 +239,39 @@ class OrderController extends BaseController
             ]);
         }
 
+        // Lấy thông tin đơn hàng với thông tin khách hàng và khách hàng phụ
+        $order = $this->orderModel
+            ->select('orders.*, 
+                customers.customer_code, 
+                customers.fullname, 
+                customers.thread_id_zalo_notify_order as customer_thread_id,
+                customers.msg_zalo_type_notify_order as customer_msg_type,
+                sub_customers.sub_customer_code,
+                sub_customers.fullname as sub_customer_name,
+                sub_customers.thread_id_zalo_notify_order as sub_customer_thread_id,
+                sub_customers.msg_zalo_type_notify_order as sub_customer_msg_type')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+            ->where('orders.id', $id)
+            ->first();
+
+        if (!$order) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'message' => 'Không tìm thấy đơn hàng.'
+            ]);
+        }
+
         // Cập nhật trường vietnam_stock_date
         $update = $this->orderModel->update($id, [
-            'vietnam_stock_date' => date('Y-m-d H:i:s') // CURRENT_TIMESTAMP
+            'vietnam_stock_date' => date('Y-m-d H:i:s')
         ]);
 
         // Kiểm tra kết quả
         if ($update) {
+            // Gửi thông báo qua webhook
+            $this->notifyOrder($order['id']);
+
             return $this->response->setJSON([
                 'status' => 200,
                 'message' => 'Cập nhật ngày nhập kho thành công.',
@@ -259,12 +287,9 @@ class OrderController extends BaseController
 
     public function updateVietnamStockDateByTrackingCode()
     {
-
-
-
         // Lấy tracking_code từ dữ liệu gửi lên
         $data = $this->request->getJSON(true);
-        $trackingCode = $input['tracking_code'] ?? null;
+        $trackingCode = $data['tracking_code'] ?? null;
 
         // Kiểm tra tracking_code có hợp lệ không
         if (empty($trackingCode)) {
@@ -275,17 +300,43 @@ class OrderController extends BaseController
             ]);
         }
 
+        // Lấy thông tin đơn hàng với thông tin khách hàng và khách hàng phụ
+        $order = $this->orderModel
+            ->select('orders.*, 
+                customers.customer_code, 
+                customers.fullname, 
+                customers.thread_id_zalo_notify_order as customer_thread_id,
+                customers.msg_zalo_type_notify_order as customer_msg_type,
+                sub_customers.sub_customer_code,
+                sub_customers.fullname as sub_customer_name,
+                sub_customers.thread_id_zalo_notify_order as sub_customer_thread_id,
+                sub_customers.msg_zalo_type_notify_order as sub_customer_msg_type')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+            ->where('tracking_code', $trackingCode)
+            ->first();
+
+        if (!$order) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'message' => 'Không tìm thấy đơn hàng.',
+                'tracking_code' => $trackingCode
+            ]);
+        }
 
         // Chỉ cập nhật khi `vietnam_stock_date` là NULL
         $update = $this->orderModel
             ->where('tracking_code', $trackingCode)
-            ->where('vietnam_stock_date IS NULL') // Điều kiện: Chỉ cập nhật nếu `vietnam_stock_date` đang trống
-            ->set('vietnam_stock_date', date('Y-m-d H:i:s')) // CURRENT_TIMESTAMP
+            ->where('vietnam_stock_date IS NULL')
+            ->set('vietnam_stock_date', date('Y-m-d H:i:s'))
             ->update();
 
         // Kiểm tra kết quả
         if ($update) {
             if ($this->orderModel->affectedRows() > 0) {
+
+                $this->notifyOrder($order['id']);
+
                 return $this->response->setJSON([
                     'status' => 200,
                     'message' => 'Cập nhật ngày nhập kho thành công.',
@@ -384,6 +435,9 @@ class OrderController extends BaseController
         $totalShippingCost = max($shippingCostByWeight, $shippingCostByVolume); // Lấy giá trị lớn hơn
         $exchangeRate = $order['exchange_rate'] > 0 ? $order['exchange_rate'] : 1; // Nếu không có tỷ giá, mặc định là 1
         $totalOrderValue = $totalShippingCost + ($order['domestic_fee'] * $exchangeRate);
+        $totalOrderValue = $totalOrderValue + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
+
+
 
         // Kiểm tra giá và tạo thông báo lỗi nếu cần
         $orderValueError = null;
@@ -445,6 +499,10 @@ class OrderController extends BaseController
             'price_per_cubic_meter' => $this->request->getPost('price_per_cubic_meter'),
             'exchange_rate' => $this->request->getPost('exchange_rate'),
             'domestic_fee' => $this->request->getPost('domestic_fee'),
+            'official_quota_fee' => $this->request->getPost('official_quota_fee'),
+            'vat_tax' => $this->request->getPost('vat_tax'),
+            'import_tax' => $this->request->getPost('import_tax'),
+            'other_tax' => $this->request->getPost('other_tax'),
             'volume' => $this->request->getPost('volume'),
             'length' => $this->request->getPost('length'),
             'width' => $this->request->getPost('width'),
@@ -594,7 +652,11 @@ class OrderController extends BaseController
                 'length',
                 'width',
                 'height',
-                'notes'
+                'notes',
+                'official_quota_fee',
+                'vat_tax',
+                'import_tax',
+                'other_tax'
             ];
 
             // Ánh xạ tiêu đề kỹ thuật với cột trong database
@@ -640,7 +702,11 @@ class OrderController extends BaseController
                     'length' => 0, // Mặc định là 0
                     'width' => 0, // Mặc định là 0
                     'height' => 0, // Mặc định là 0
-                    'notes' => null
+                    'notes' => null,
+                    'official_quota_fee' => 0,
+                    'vat_tax' => 0,
+                    'import_tax' => 0,
+                    'other_tax' => 0
                 ];
 
                 // Ánh xạ dữ liệu từ file
@@ -886,6 +952,7 @@ class OrderController extends BaseController
                 ]);
             }
 
+            // Lấy thông tin đơn hàng trước khi cập nhật
             $order = $this->orderModel->find($orderId);
             if (!$order) {
                 return $this->response->setJSON([
@@ -925,6 +992,145 @@ class OrderController extends BaseController
 
             $result = $this->orderModel->update($orderId, $updateData);
             if ($result) {
+                // Lấy thông tin khách hàng mới sau khi cập nhật
+                $updatedCustomer = $this->customerModel->find($customerId);
+
+                // Lấy thông tin đơn hàng sau khi cập nhật với thông tin khách hàng và khách hàng phụ
+                $updatedOrder = $this->orderModel
+                    ->select('orders.*, 
+                        customers.customer_code, 
+                        customers.fullname, 
+                        sub_customers.sub_customer_code,
+                        sub_customers.fullname as sub_customer_name,
+                        sub_customers.thread_id_zalo_notify_order as sub_customer_thread_id,
+                        sub_customers.msg_zalo_type_notify_order as sub_customer_msg_type')
+                    ->join('customers', 'customers.id = orders.customer_id', 'left')
+                    ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+                    ->where('orders.id', $orderId)
+                    ->first();
+
+                // Gửi thông báo qua webhook
+                $client = \Config\Services::curlrequest();
+
+                // Kiểm tra và gửi thông báo dựa trên điều kiện
+                if (empty($updatedOrder['sub_customer_id'])) {
+                    // Trường hợp không có mã phụ
+                    if (!empty($updatedCustomer['thread_id_zalo_notify_order'])) {
+                        try {
+                            $postData = [
+                                'name' => $updatedOrder['fullname'],
+                                'code' => $updatedOrder['customer_code'],
+                                'total_weight' => $updatedOrder['total_weight'],
+                                'thread_id_zalo_notify_order' => $updatedCustomer['thread_id_zalo_notify_order'],
+                                'msg_zalo_type_notify_order' => $updatedCustomer['msg_zalo_type_notify_order'],
+                                'tracking_code' => $updatedOrder['tracking_code']
+                            ];
+
+                            log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                            $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                'headers' => [
+                                    'Content-Type' => 'application/x-www-form-urlencoded'
+                                ],
+                                'form_params' => $postData
+                            ]);
+
+                            log_message('debug', 'Notification response: ' . $response->getBody());
+                        } catch (\Exception $e) {
+                            log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                        }
+                    } else {
+                        // Không gửi thông báo nếu không có thread_id_zalo_notify_order
+                        log_message('debug', 'Không gửi thông báo vì thiếu thread_id_zalo_notify_order');
+                        return false;
+                    }
+                } else {
+                    // Trường hợp có mã phụ
+                    if (
+                        $updatedCustomer['thread_id_zalo_notify_order'] === $updatedOrder['sub_customer_thread_id'] &&
+                        !empty($updatedOrder['sub_customer_thread_id']) &&
+                        !empty($updatedOrder['sub_customer_msg_type'])
+                    ) {
+                        // Gửi 1 post cho mã phụ nếu thread_id giống nhau
+                        try {
+                            $postData = [
+                                'name' => $updatedOrder['sub_customer_name'],
+                                'code' => $updatedOrder['sub_customer_code'],
+                                'total_weight' => $updatedOrder['total_weight'],
+                                'thread_id_zalo_notify_order' => $updatedOrder['sub_customer_thread_id'],
+                                'msg_zalo_type_notify_order' => $updatedOrder['sub_customer_msg_type'],
+                                'tracking_code' => $updatedOrder['tracking_code']
+                            ];
+
+                            log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                            $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                'headers' => [
+                                    'Content-Type' => 'application/x-www-form-urlencoded'
+                                ],
+                                'form_params' => $postData
+                            ]);
+
+                            log_message('debug', 'Notification response: ' . $response->getBody());
+                        } catch (\Exception $e) {
+                            log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                        }
+                    } else {
+                        // Gửi 2 post riêng biệt nếu thread_id khác nhau
+                        if (!empty($updatedCustomer['thread_id_zalo_notify_order']) && !empty($updatedCustomer['msg_zalo_type_notify_order'])) {
+                            try {
+                                $postData = [
+                                    'name' => $updatedOrder['fullname'],
+                                    'code' => $updatedOrder['customer_code'],
+                                    'total_weight' => $updatedOrder['total_weight'],
+                                    'thread_id_zalo_notify_order' => $updatedCustomer['thread_id_zalo_notify_order'],
+                                    'msg_zalo_type_notify_order' => $updatedCustomer['msg_zalo_type_notify_order'],
+                                    'tracking_code' => $updatedOrder['tracking_code']
+                                ];
+
+                                log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                                $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                    'headers' => [
+                                        'Content-Type' => 'application/x-www-form-urlencoded'
+                                    ],
+                                    'form_params' => $postData
+                                ]);
+
+                                log_message('debug', 'Notification response: ' . $response->getBody());
+                            } catch (\Exception $e) {
+                                log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                            }
+                        }
+
+                        if (!empty($updatedOrder['sub_customer_thread_id']) && !empty($updatedOrder['sub_customer_msg_type'])) {
+                            try {
+                                $postData = [
+                                    'name' => $updatedOrder['sub_customer_name'],
+                                    'code' => $updatedOrder['sub_customer_code'],
+                                    'total_weight' => $updatedOrder['total_weight'],
+                                    'thread_id_zalo_notify_order' => $updatedOrder['sub_customer_thread_id'],
+                                    'msg_zalo_type_notify_order' => $updatedOrder['sub_customer_msg_type'],
+                                    'tracking_code' => $updatedOrder['tracking_code']
+                                ];
+
+                                log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                                $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                    'headers' => [
+                                        'Content-Type' => 'application/x-www-form-urlencoded'
+                                    ],
+                                    'form_params' => $postData
+                                ]);
+
+                                log_message('debug', 'Notification response: ' . $response->getBody());
+                            } catch (\Exception $e) {
+                                log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                            }
+                        }
+                    }
+                }
+
                 $statusHistory = [
                     ['time' => date('d/m/Y H:i', strtotime($order['created_at'])), 'status' => 'Nhập kho Trung Quốc'],
                     ['time' => date('d/m/Y H:i', strtotime(date('Y-m-d H:i:s'))), 'status' => 'Nhập kho Việt Nam']
@@ -1009,6 +1215,10 @@ class OrderController extends BaseController
             'Phí tệ',
             'Tỷ giá',
             'Phí TQ',
+            'Phí Chính ngạch',
+            'Thuế VAT',
+            'Thuế NK',
+            'Thuế khác',
             'Tổng',
             'TT',
             'Trạng thái'
@@ -1048,7 +1258,11 @@ class OrderController extends BaseController
                 $order['domestic_fee'],
                 $order['exchange_rate'],
                 $gianoidia_trung,
-                $gianoidia_trung + $gia_cuoi_cung,
+                $order['official_quota_fee'],
+                $order['vat_tax'],
+                $order['import_tax'],
+                $order['other_tax'],
+                $gianoidia_trung + $gia_cuoi_cung + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'],
                 $cach_tinh_gia,
                 $status
             ], null, "A$row");
@@ -1180,6 +1394,175 @@ class OrderController extends BaseController
         return view('orders/vietnam_stock', $data);
     }
 
+    /**
+     * Gửi thông báo đơn hàng về kho VN
+     * @param int $order_id ID của đơn hàng
+     * @return bool Trả về true nếu gửi thông báo thành công, false nếu thất bại
+     */
+    private function notifyOrder($order_id)
+    {
+        try {
+            // Lấy thông tin đơn hàng với thông tin khách hàng và khách hàng phụ
+            $order = $this->orderModel
+                ->select('orders.*, 
+                    customers.customer_code, 
+                    customers.fullname, 
+                    customers.id as customer_id,
+                    sub_customers.sub_customer_code,
+                    sub_customers.fullname as sub_customer_name,
+                    sub_customers.thread_id_zalo_notify_order as sub_customer_thread_id,
+                    sub_customers.msg_zalo_type_notify_order as sub_customer_msg_type')
+                ->join('customers', 'customers.id = orders.customer_id', 'left')
+                ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+                ->where('orders.id', $order_id)
+                ->first();
+
+            if (!$order) {
+                log_message('error', 'Không tìm thấy đơn hàng ID: ' . $order_id);
+                return false;
+            }
+
+            // Lấy thông tin khách hàng
+            $customer = $this->customerModel->find($order['customer_id']);
+            if (!$customer) {
+                log_message('error', 'Không tìm thấy khách hàng ID: ' . $order['customer_id']);
+                return false;
+            }
+
+            // Gửi thông báo qua webhook
+            $client = \Config\Services::curlrequest();
+
+            // Kiểm tra và gửi thông báo dựa trên điều kiện
+            if (empty($order['sub_customer_id'])) {
+                // Trường hợp không có mã phụ
+                if (!empty($customer['thread_id_zalo_notify_order'])) {
+                    try {
+                        $postData = [
+                            'name' => $order['fullname'],
+                            'code' => $order['customer_code'],
+                            'total_weight' => $order['total_weight'],
+                            'thread_id_zalo_notify_order' => $customer['thread_id_zalo_notify_order'],
+                            'msg_zalo_type_notify_order' => $customer['msg_zalo_type_notify_order'],
+                            'tracking_code' => $order['tracking_code']
+                        ];
+
+                        log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                        $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                            'headers' => [
+                                'Content-Type' => 'application/x-www-form-urlencoded'
+                            ],
+                            'form_params' => $postData
+                        ]);
+
+                        log_message('debug', 'Notification response: ' . $response->getBody());
+                        return true;
+                    } catch (\Exception $e) {
+                        log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                        return false;
+                    }
+                } else {
+                    // Không gửi thông báo nếu không có thread_id_zalo_notify_order
+                    log_message('debug', 'Không gửi thông báo vì thiếu thread_id_zalo_notify_order');
+                    return false;
+                }
+            } else {
+                // Trường hợp có mã phụ
+                if (
+                    $customer['thread_id_zalo_notify_order'] === $order['sub_customer_thread_id'] &&
+                    !empty($order['sub_customer_thread_id'])
+                ) {
+                    // Gửi 1 post cho mã phụ nếu thread_id giống nhau
+                    try {
+                        $postData = [
+                            'name' => $order['sub_customer_name'],
+                            'code' => $order['sub_customer_code'],
+                            'total_weight' => $order['total_weight'],
+                            'thread_id_zalo_notify_order' => $order['sub_customer_thread_id'],
+                            'msg_zalo_type_notify_order' => $order['sub_customer_msg_type'],
+                            'tracking_code' => $order['tracking_code']
+                        ];
+
+                        log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                        $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                            'headers' => [
+                                'Content-Type' => 'application/x-www-form-urlencoded'
+                            ],
+                            'form_params' => $postData
+                        ]);
+
+                        log_message('debug', 'Notification response: ' . $response->getBody());
+                        return true;
+                    } catch (\Exception $e) {
+                        log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                        return false;
+                    }
+                } else {
+                    $success = true;
+                    // Gửi 2 post riêng biệt nếu thread_id khác nhau
+                    if (!empty($customer['thread_id_zalo_notify_order'])) {
+                        try {
+                            $postData = [
+                                'name' => $order['fullname'],
+                                'code' => $order['customer_code'],
+                                'total_weight' => $order['total_weight'],
+                                'thread_id_zalo_notify_order' => $customer['thread_id_zalo_notify_order'],
+                                'msg_zalo_type_notify_order' => $customer['msg_zalo_type_notify_order'],
+                                'tracking_code' => $order['tracking_code']
+                            ];
+
+                            log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                            $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                'headers' => [
+                                    'Content-Type' => 'application/x-www-form-urlencoded'
+                                ],
+                                'form_params' => $postData
+                            ]);
+
+                            log_message('debug', 'Notification response: ' . $response->getBody());
+                        } catch (\Exception $e) {
+                            log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                            $success = false;
+                        }
+                    }
+
+                    if (!empty($order['sub_customer_thread_id'])) {
+                        try {
+                            $postData = [
+                                'name' => $order['sub_customer_name'],
+                                'code' => $order['sub_customer_code'],
+                                'total_weight' => $order['total_weight'],
+                                'thread_id_zalo_notify_order' => $order['sub_customer_thread_id'],
+                                'msg_zalo_type_notify_order' => $order['sub_customer_msg_type'],
+                                'tracking_code' => $order['tracking_code']
+                            ];
+
+                            log_message('debug', 'Sending notification with data: ' . json_encode($postData));
+
+                            $response = $client->request('POST', $this->webhookConfig->getWebhookUrl('webhook/thongbaodon'), [
+                                'headers' => [
+                                    'Content-Type' => 'application/x-www-form-urlencoded'
+                                ],
+                                'form_params' => $postData
+                            ]);
+
+                            log_message('debug', 'Notification response: ' . $response->getBody());
+                        } catch (\Exception $e) {
+                            log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());
+                            $success = false;
+                        }
+                    }
+                    return $success;
+                }
+            }
+            return false;
+        } catch (\Exception $e) {
+            log_message('error', 'Lỗi trong quá trình gửi thông báo: ' . $e->getMessage());
+            return false;
+        }
+    }
 
     public function updateVietnamStockDateUI()
     {
@@ -1191,10 +1574,18 @@ class OrderController extends BaseController
             return '<div class="alert alert-danger">Mã vận chuyển không hợp lệ.</div>';
         }
 
-        // Tìm đơn hàng theo tracking_code
+        // Tìm đơn hàng theo tracking_code với thông tin khách hàng và khách hàng phụ
         $order = $this->orderModel
-            ->select('orders.*, customers.customer_code')
+            ->select('orders.*, 
+                customers.customer_code, 
+                customers.fullname, 
+                customers.id as customer_id,
+                sub_customers.sub_customer_code,
+                sub_customers.fullname as sub_customer_name,
+                sub_customers.thread_id_zalo_notify_order as sub_customer_thread_id,
+                sub_customers.msg_zalo_type_notify_order as sub_customer_msg_type')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
             ->where('tracking_code', $trackingCode)
             ->first();
 
@@ -1223,6 +1614,10 @@ class OrderController extends BaseController
                 'time' => date('Y-m-d H:i:s'),
                 'status' => 'Nhập kho Việt Nam'
             ];
+
+            // Gửi thông báo
+            $this->notifyOrder($order['id']);
+
             return view('orders/vncheck_result', [
                 'status' => 'in_vn',
                 'order' => $order,

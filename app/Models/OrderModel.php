@@ -12,6 +12,9 @@ class OrderModel extends Model
         'tracking_code',
         'customer_id',
         'sub_customer_id',
+        'aff_id',
+        'aff_price_per_kg',
+        'aff_price_per_cubic_meter',
         'product_type_id',
         'package_index',
         'package_code',
@@ -32,7 +35,11 @@ class OrderModel extends Model
         'price_per_kg',             // Giá 1 kg
         'price_per_cubic_meter',    // Giá 1 khối
         'exchange_rate',
-        'invoice_id'
+        'invoice_id',
+        'official_quota_fee', // Phí hạn ngạch chính phủ
+        'vat_tax', // Thuế VAT
+        'import_tax', // Thuế NK
+        'other_tax' // Thuế khác
     ];
 
     /**

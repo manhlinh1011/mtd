@@ -1,26 +1,26 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 
-<div class="container">
+<div class="container-fluid">
     <h1 class="text-center">PHIẾU XUẤT HÀNG</h1>
     <h4 class="text-center">#<?= $invoice['id'] ?></h4>
-    <div class="mt-4">
-        <div class="row">
-            <div class="col-6">
-                <h5>Thông tin Phiếu Xuất</h5>
-                <p><strong>Khách hàng:</strong> <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)<br>
-                    <?php if ($invoice['sub_customer_code']): ?>
-                        <strong>Mã phụ:</strong> <?= $invoice['sub_customer_code'] ?? '-' ?><br>
-                    <?php endif; ?>
-                    <strong>Địa chỉ:</strong> <?= $customer['address'] ?><br>
-                    <strong>Số điện thoại:</strong>
-                    <?= substr($customer['phone'], 0, 3) . str_repeat('*', strlen($customer['phone']) - 6) . substr($customer['phone'], -3) ?><br>
-                    <strong>Trạng thái giao hàng:</strong>
-                    <span class="badge <?= $invoice['shipping_confirmed_at'] === null ? 'bg-warning' : 'bg-success' ?>">
-                        <?= ucfirst($invoice['shipping_confirmed_at'] === null ? 'Chờ giao' : 'Đã giao') ?>
-                    </span><br>
-                    <strong>Trạng thái thanh toán</strong>
-                    <span class="badge 
+
+    <div class="row">
+        <div class="col-6">
+            <h5>Thông tin Phiếu Xuất</h5>
+            <p><strong>Khách hàng:</strong> <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)<br>
+                <?php if ($invoice['sub_customer_code']): ?>
+                    <strong>Mã phụ:</strong> <?= $invoice['sub_customer_code'] ?? '-' ?><br>
+                <?php endif; ?>
+                <strong>Địa chỉ:</strong> <?= $customer['address'] ?><br>
+                <strong>Số điện thoại:</strong>
+                <?= substr($customer['phone'], 0, 3) . str_repeat('*', strlen($customer['phone']) - 6) . substr($customer['phone'], -3) ?><br>
+                <strong>Trạng thái giao hàng:</strong>
+                <span class="badge <?= $invoice['shipping_confirmed_at'] === null ? 'bg-warning' : 'bg-success' ?>">
+                    <?= ucfirst($invoice['shipping_confirmed_at'] === null ? 'Chờ giao' : 'Đã giao') ?>
+                </span><br>
+                <strong>Trạng thái thanh toán</strong>
+                <span class="badge 
                         <?php
                         if ($invoice['payment_status'] === 'paid') {
                             echo 'bg-success';
@@ -28,30 +28,29 @@
                             echo 'bg-danger';
                         }
                         ?> me-2">
-                        <?php
-                        if ($invoice['payment_status'] === 'paid') {
-                            echo 'Đã thanh toán';
-                        } else {
-                            echo 'Chưa thanh toán';
-                        }
-                        ?>
-                    </span><br>
-                    <?php if ($invoice['payment_status'] === 'paid'): ?>
-                        <span>Đã thanh toán: <?= number_format($total_amount, 0, ',', '.') ?>đ</span><br>
-                    <?php endif; ?>
-                    Tổng số tiền cần thanh toán: <?= number_format($total_amount, 0, ',', '.') ?>đ<br>
-                </p>
-                <p><strong>Người tạo:</strong> <?= $creator['fullname'] ?? 'Không rõ' ?><br />
-                    <?php if ($invoice['shipping_confirmed_by']): ?>
-                        <strong>Xác nhận giao:</strong> <?= $shipping_confirmed_by['fullname'] ?? 'Không rõ' ?> <br />
-                        Thời gian: <?= $invoice['shipping_confirmed_at'] ? date('H:i d/m/Y', strtotime($invoice['shipping_confirmed_at'])) : 'Chưa xác định' ?>
-                    <?php endif; ?>
-                </p>
-            </div>
-            <div class="col-6 text-right">
-                <?= $invoice['created_at'] ?><br>
-                Số kiện: <?= count($orders) ?>
-            </div>
+                    <?php
+                    if ($invoice['payment_status'] === 'paid') {
+                        echo 'Đã thanh toán';
+                    } else {
+                        echo 'Chưa thanh toán';
+                    }
+                    ?>
+                </span><br>
+                <?php if ($invoice['payment_status'] === 'paid'): ?>
+                    <span>Đã thanh toán: <?= number_format($total_amount, 0, ',', '.') ?>đ</span><br>
+                <?php endif; ?>
+                Tổng số tiền cần thanh toán: <?= number_format($total_amount, 0, ',', '.') ?>đ<br>
+            </p>
+            <p><strong>Người tạo:</strong> <?= $creator['fullname'] ?? 'Không rõ' ?><br />
+                <?php if ($invoice['shipping_confirmed_by']): ?>
+                    <strong>Xác nhận giao:</strong> <?= $shipping_confirmed_by['fullname'] ?? 'Không rõ' ?> <br />
+                    Thời gian: <?= $invoice['shipping_confirmed_at'] ? date('H:i d/m/Y', strtotime($invoice['shipping_confirmed_at'])) : 'Chưa xác định' ?>
+                <?php endif; ?>
+            </p>
+        </div>
+        <div class="col-6 text-right">
+            <?= $invoice['created_at'] ?><br>
+            Số kiện: <?= count($orders) ?>
         </div>
     </div>
 
@@ -63,8 +62,9 @@
                 <tr>
                     <th>#</th>
                     <th>Mã vận chuyển</th>
-                    <th>Mã phụ</th>
-                    <th>Mã bao</th>
+                    <?php if ($invoice['sub_customer_code']): ?>
+                        <th>Mã phụ</th>
+                    <?php endif; ?>
                     <th>Hàng</th>
                     <th>Số lượng</th>
                     <th>KL (kg)</th>
@@ -72,8 +72,12 @@
                     <th>Khối m³</th>
                     <th>Giá/kg</th>
                     <th>Giá/khối</th>
-                    <th>Phí nội địa</th>
                     <th>Tính theo</th>
+                    <th>Phí nội địa</th>
+                    <th>Phí chính ngạch</th>
+                    <th>Thuế VAT</th>
+                    <th>Thuế NK</th>
+                    <th>Phí khác</th>
                     <th>Tổng giá</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none">Hành động</th>
@@ -87,12 +91,16 @@
                 $totalVolume = 0;
                 $totalQuantity = 0; // Thêm biến tổng số lượng
                 $totalDomesticFee = 0; // Thêm biến tổng phí nội địa
+                $totalOfficialQuotaFee = 0;
+                $totalVatTax = 0;
+                $totalImportTax = 0;
+                $totalOtherTax = 0;
                 ?>
                 <?php foreach ($orders as $index => $order): ?>
                     <?php
                     $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                     $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-                    $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+                    $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']) + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
                     $total += $finalPrice;
                     $priceMethod = ($priceByWeight >= $priceByVolume) ? "Cân nặng" : "Thể tích";
                     // Tính tổng các giá trị
@@ -100,12 +108,17 @@
                     $totalVolume += $order['volume'];
                     $totalQuantity += $order['quantity']; // Cộng dồn số lượng
                     $totalDomesticFee += $order['domestic_fee']; // Cộng dồn phí nội địa
+                    $totalOfficialQuotaFee += $order['official_quota_fee'];
+                    $totalVatTax += $order['vat_tax'];
+                    $totalImportTax += $order['import_tax'];
+                    $totalOtherTax += $order['other_tax'];
                     ?>
                     <tr>
                         <td class="text-center"><?= $index + 1 ?></td>
                         <td class="text-center"><?= $order['tracking_code'] ?></td>
-                        <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
-                        <td class="text-center"><?= $order['package_code'] ?></td>
+                        <?php if ($invoice['sub_customer_code']): ?>
+                            <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
+                        <?php endif; ?>
                         <td class="text-center"><?= $order['product_type_name'] ?></td>
                         <td class="text-center"><?= $order['quantity'] ?></td>
                         <td class="text-center"><?= $order['total_weight'] ?></td>
@@ -113,8 +126,12 @@
                         <td class="text-center"><?= $order['volume'] ?></td>
                         <td class="text-center"><?= number_format($order['price_per_kg'], 0, ',', '.') ?></td>
                         <td class="text-center"><?= number_format($order['price_per_cubic_meter'], 0, ',', '.') ?></td>
-                        <td class="text-center"><?= number_format($order['domestic_fee'], 2, '.', ',') ?></td>
                         <td class="text-center"><?= $priceMethod ?></td>
+                        <td class="text-center"><?= number_format($order['domestic_fee'], 2, '.', ',') ?></td>
+                        <td class="text-center"><?= number_format($order['official_quota_fee'] ?? 0, 0, '.', ',') ?></td>
+                        <td class="text-center"><?= number_format($order['vat_tax'] ?? 0, 0, '.', ',') ?></td>
+                        <td class="text-center"><?= number_format($order['import_tax'] ?? 0, 0, '.', ',') ?></td>
+                        <td class="text-center"><?= number_format($order['other_tax'] ?? 0, 0, '.', ',') ?></td>
                         <td class="text-center"><?= number_format($finalPrice, 0, ',', '.') ?> đ</td>
                         <?php if (in_array(session('role'), ['Quản lý'])): ?>
                             <td class="text-center d-print-none">
@@ -128,35 +145,38 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="5">Tổng</th>
+                    <th colspan="<?= $invoice['sub_customer_code'] ? '4' : '3' ?>">Tổng</th>
                     <th><?= number_format($totalQuantity, 0, ',', '.') ?></th>
                     <th><?= number_format($totalWeight, 2, ',', '.') ?></th>
                     <th></th>
                     <th><?= number_format($totalVolume, 3, ',', '.') ?></th>
-                    <th colspan="2"></th>
+                    <th colspan="3"></th>
                     <th><?= number_format($totalDomesticFee, 2, '.', ',') ?></th>
-                    <th></th>
+                    <th><?= number_format($totalOfficialQuotaFee, 0, '.', ',') ?></th>
+                    <th><?= number_format($totalVatTax, 0, '.', ',') ?></th>
+                    <th><?= number_format($totalImportTax, 0, '.', ',') ?></th>
+                    <th><?= number_format($totalOtherTax, 0, '.', ',') ?></th>
                     <th><?= number_format($total, 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="12">Phí giao hàng</th>
+                    <th colspan="15">Phí giao hàng</th>
                     <th><?= number_format($invoice['shipping_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="12">Phí khác</th>
+                    <th colspan="15">Phí khác</th>
                     <th><?= number_format($invoice['other_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="12">Tổng cộng</th>
+                    <th colspan="15">Tổng cộng</th>
                     <th><?= number_format($total + $invoice['shipping_fee'] + $invoice['other_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
@@ -189,7 +209,7 @@
                         <i class="mdi mdi-printer mr-1"></i> In Phiếu
                     </a>
 
-                    <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['shipping_confirmed_at'] === null): ?>
+                    <?php if (in_array(session('role'), ['Quản lý']) && $invoice['shipping_confirmed_at'] === null): ?>
                         <a href="/invoices/confirmShipping/<?= $invoice['id'] ?>" class="btn btn-success">
                             <i class="mdi mdi-truck-check mr-1"></i> Xác nhận đã giao
                         </a>

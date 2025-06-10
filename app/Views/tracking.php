@@ -54,32 +54,34 @@
             <button type="submit" class="btn btn-primary">Kiểm tra</button>
         </form>
 
-        <?php if (isset($error)) : ?>
-            <div class="alert alert-danger mt-3 text-center"><?= $error ?></div>
-        <?php endif; ?>
+        <div class="ketqua">
+            <?php if (isset($error)) : ?>
+                <div class="alert alert-danger mt-3 text-center"><?= $error ?></div>
+            <?php endif; ?>
 
-        <?php if (isset($trackingCode) && isset($statusHistory)) : ?>
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Mã vận đơn: <strong><?= htmlspecialchars($trackingCode) ?></strong></h5>
-                    <p class="mt-2">
-                        Cân năng: <?= $weight ?> kg,<br>
-                        Kích thước: <?= $volume ?> m3,<br>
-                        Phí nội địa trung quốc: ¥<?= $domestic_fee ?>
-                    </p>
+            <?php if (isset($trackingCode) && isset($statusHistory)) : ?>
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Mã vận đơn: <strong><?= htmlspecialchars($trackingCode) ?></strong></h5>
+                        <p class="mt-2">
+                            Cân năng: <?= $weight ?> kg,<br>
+                            Kích thước: <?= $volume ?> m3,<br>
+                            Phí nội địa trung quốc: ¥<?= $domestic_fee ?>
+                        </p>
+                    </div>
+                    <div class="card-body">
+                        <ul class="timeline">
+                            <?php foreach ($statusHistory as $status) : ?>
+                                <li>
+                                    <strong><?= date('d/m/Y H:i', strtotime($status['time'])) ?>:</strong>
+                                    <?= htmlspecialchars($status['status']) ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <ul class="timeline">
-                        <?php foreach ($statusHistory as $status) : ?>
-                            <li>
-                                <strong><?= date('d/m/Y H:i', strtotime($status['time'])) ?>:</strong>
-                                <?= htmlspecialchars($status['status']) ?>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            </div>
-        <?php endif; ?>
+            <?php endif; ?>
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

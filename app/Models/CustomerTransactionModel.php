@@ -8,7 +8,7 @@ class CustomerTransactionModel extends Model
 {
     protected $table = 'customer_transactions';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['customer_id', 'invoice_id', 'transaction_type', 'amount', 'created_by', 'notes'];
+    protected $allowedFields = ['customer_id', 'invoice_id', 'fund_id', 'transaction_type', 'amount', 'created_by', 'notes'];
 
     public function addTransaction($data)
     {

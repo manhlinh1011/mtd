@@ -14,6 +14,10 @@ class UserModel extends Model
         'email',
         'password',
         'profile_picture',
+        'affiliate_balance',
+        'bank_account',
+        'bank_name',
+        'account_holder',
         'created_at',
         'updated_at'
     ];

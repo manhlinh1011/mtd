@@ -8,6 +8,7 @@ use App\Models\CustomerModel;
 use App\Models\CustomerTransactionModel;
 use App\Models\SystemLogModel;
 use App\Models\InvoiceOrderModel;
+use App\Models\ShippingManagerModel;
 
 class InvoiceController extends BaseController
 {
@@ -58,6 +59,10 @@ class InvoiceController extends BaseController
             orders.export_date,
             orders.created_at,
             orders.vietnam_stock_date,
+            orders.official_quota_fee,
+            orders.vat_tax,
+            orders.import_tax,
+            orders.other_tax,
             sub_customers.id as sub_customer_id,
             sub_customers.sub_customer_code
         ')
@@ -96,7 +101,11 @@ class InvoiceController extends BaseController
             $pricing_method = ($final_price == $price_by_weight) ? 'By Weight' : 'By Volume';
 
             $total_domestic_fee = $order['domestic_fee'] * $order['exchange_rate'];
-            $total_price = $final_price + $total_domestic_fee;
+            $total_price = $final_price + $total_domestic_fee +
+                $order['official_quota_fee'] +
+                $order['vat_tax'] +
+                $order['import_tax'] +
+                $order['other_tax'];
 
             // Thêm thông tin đơn hàng vào danh sách của mã phụ
             $customerCart[$customerId]['sub_customers'][$subCustomerId]['orders'][] = [
@@ -119,7 +128,11 @@ class InvoiceController extends BaseController
                 'final_price' => $final_price,
                 'pricing_method' => $pricing_method,
                 'total_domestic_fee' => $total_domestic_fee,
-                'total_price' => $total_price
+                'total_price' => $total_price,
+                'official_quota_fee' => $order['official_quota_fee'],
+                'vat_tax' => $order['vat_tax'],
+                'import_tax' => $order['import_tax'],
+                'other_tax' => $order['other_tax']
             ];
         }
 
@@ -135,6 +148,8 @@ class InvoiceController extends BaseController
         $invoiceModel = new \App\Models\InvoiceModel();
 
         $orderModel = new \App\Models\OrderModel(); // Thêm model OrderModel để tính total_amount và tìm theo tracking_code
+
+        $shippingManagerModel = new \App\Models\ShippingManagerModel(); // Khởi tạo ShippingManagerModel
 
         $perPage = 30; // Số lượng bản ghi mỗi trang, giống như OrderController
 
@@ -202,7 +217,12 @@ class InvoiceController extends BaseController
             foreach ($orders as $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+                $finalPrice = max($priceByWeight, $priceByVolume) +
+                    ($order['domestic_fee'] * $order['exchange_rate']) +
+                    $order['official_quota_fee'] +
+                    $order['vat_tax'] +
+                    $order['import_tax'] +
+                    $order['other_tax'];
                 $total += $finalPrice;
             }
             $totalAmount = $total + (int)($invoice['shipping_fee'] ?? 0); // Ép kiểu int cho shipping_fee
@@ -219,6 +239,10 @@ class InvoiceController extends BaseController
 
             $invoice['payment_status_dynamic'] = $paymentStatus;
             $invoice['total_amount'] = $totalAmount; // Gán total_amount tính toán động
+
+            // Kiểm tra xem phiếu xuất này đã có yêu cầu giao hàng chưa
+            $existingShipping = $shippingManagerModel->where('invoice_id', $invoice['id'])->first();
+            $invoice['has_shipping_request'] = ($existingShipping !== null); // Thêm trường mới vào dữ liệu invoice
         }
 
         // Lấy danh sách khách hàng để hiển thị dropdown
@@ -339,6 +363,10 @@ class InvoiceController extends BaseController
             orders.export_date,
             orders.created_at,
             orders.vietnam_stock_date,
+            orders.official_quota_fee,
+            orders.vat_tax,
+            orders.import_tax,
+            orders.other_tax,
             sub_customers.id as sub_customer_id,
             sub_customers.sub_customer_code
         ')
@@ -425,7 +453,12 @@ class InvoiceController extends BaseController
         foreach ($orders as $order) {
             $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
             $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-            $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+            $finalPrice = max($priceByWeight, $priceByVolume) +
+                ($order['domestic_fee'] * $order['exchange_rate']) +
+                $order['official_quota_fee'] +
+                $order['vat_tax'] +
+                $order['import_tax'] +
+                $order['other_tax'];
             $total += $finalPrice;
         }
         $totalAmount = $total + (float)$shippingFee + (float)$otherFee;
@@ -523,7 +556,11 @@ class InvoiceController extends BaseController
                 $gia_cuoi_cung = $gia_theo_khoi;
             }
             $gianoidia_trung = ($order['domestic_fee'] * $order['exchange_rate']);
-            $tong_tien = $gia_cuoi_cung + $gianoidia_trung;
+            $tong_tien = $gia_cuoi_cung + $gianoidia_trung +
+                $order['official_quota_fee'] +
+                $order['vat_tax'] +
+                $order['import_tax'] +
+                $order['other_tax'];
             $total += $tong_tien;
         }
         $totalAmount = $total + (float)$invoice['shipping_fee'] + (float)$invoice['other_fee']; // Cộng thêm other_fee
@@ -898,13 +935,13 @@ class InvoiceController extends BaseController
             }
 
             // Kiểm tra nếu giao hàng chưa được xác nhận
-            if ($invoice['shipping_status'] !== 'confirmed') {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Phiếu xuất phải được xác nhận giao hàng trước khi thanh toán.',
-                    'modal_type' => 'shipping_not_confirmed'
-                ]);
-            }
+            // if ($invoice['shipping_status'] !== 'confirmed') {
+            //     return $this->response->setJSON([
+            //         'success' => false,
+            //         'message' => 'Phiếu xuất phải được xác nhận giao hàng trước khi thanh toán.',
+            //         'modal_type' => 'shipping_not_confirmed'
+            //     ]);
+            // }
 
             // Tính total_amount động (giống trong detail và index)
             $orders = $orderModel->where('invoice_id', $invoiceId)->findAll();
@@ -915,7 +952,7 @@ class InvoiceController extends BaseController
             foreach ($orders as $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']) + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
 
                 if ($finalPrice <= 0) {
                     $invalidOrders[] = "#{$order['id']} (Mã vận chuyển: {$order['tracking_code']})";
@@ -1501,7 +1538,13 @@ class InvoiceController extends BaseController
         $priceByWeight = floatval($order['total_weight'] ?? 0) * floatval($order['price_per_kg'] ?? 0);
         $priceByVolume = floatval($order['volume'] ?? 0) * floatval($order['price_per_cubic_meter'] ?? 0);
         $domesticFee = floatval($order['domestic_fee'] ?? 0) * floatval($order['exchange_rate'] ?? 0);
-        return max($priceByWeight, $priceByVolume) + $domesticFee;
+        $officialQuotaFee = floatval($order['official_quota_fee'] ?? 0);
+        $vatTax = floatval($order['vat_tax'] ?? 0);
+        $importTax = floatval($order['import_tax'] ?? 0);
+        $otherTax = floatval($order['other_tax'] ?? 0);
+
+        return max($priceByWeight, $priceByVolume) + $domesticFee +
+            $officialQuotaFee + $vatTax + $importTax + $otherTax;
     }
 
 
@@ -1585,10 +1628,19 @@ class InvoiceController extends BaseController
                     $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
                     $domesticFee = floatval($order['domestic_fee'] ?? 0);
                     $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+                    $officialQuotaFee = floatval($order['official_quota_fee'] ?? 0);
+                    $vatTax = floatval($order['vat_tax'] ?? 0);
+                    $importTax = floatval($order['import_tax'] ?? 0);
+                    $otherTax = floatval($order['other_tax'] ?? 0);
 
                     $priceByWeight = $totalWeight * $pricePerKg;
                     $priceByVolume = $volume * $pricePerCubicMeter;
-                    $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
+                    $finalPrice = max($priceByWeight, $priceByVolume) +
+                        ($domesticFee * $exchangeRate) +
+                        $officialQuotaFee +
+                        $vatTax +
+                        $importTax +
+                        $otherTax;
                     $total_amount += $finalPrice;
                 }
                 $shippingFee = floatval($invoice['shipping_fee'] ?? 0);
@@ -1719,10 +1771,19 @@ class InvoiceController extends BaseController
                         $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
                         $domesticFee = floatval($order['domestic_fee'] ?? 0);
                         $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+                        $officialQuotaFee = floatval($order['official_quota_fee'] ?? 0);
+                        $vatTax = floatval($order['vat_tax'] ?? 0);
+                        $importTax = floatval($order['import_tax'] ?? 0);
+                        $otherTax = floatval($order['other_tax'] ?? 0);
 
                         $priceByWeight = $totalWeight * $pricePerKg;
                         $priceByVolume = $volume * $pricePerCubicMeter;
-                        $finalPrice = max($priceByWeight, $priceByVolume) + ($domesticFee * $exchangeRate);
+                        $finalPrice = max($priceByWeight, $priceByVolume) +
+                            ($domesticFee * $exchangeRate) +
+                            $officialQuotaFee +
+                            $vatTax +
+                            $importTax +
+                            $otherTax;
                         $total_amount += $finalPrice;
                     }
 
@@ -1818,6 +1879,10 @@ class InvoiceController extends BaseController
             'Giá/kg',
             'Giá/khối',
             'Phí nội địa',
+            'Phí Chính ngạch',
+            'Thuế VAT',
+            'Thuế Nhập khẩu',
+            'Thuế khác',
             'Tính theo',
             'Tổng giá'
         ];
@@ -1830,18 +1895,38 @@ class InvoiceController extends BaseController
         $totalVolume = 0;
         $totalQuantity = 0;
         $totalDomesticFee = 0;
+        $totalOfficialQuotaFee = 0;
+        $totalVatTax = 0;
+        $totalImportTax = 0;
+        $totalOtherTax = 0;
 
         foreach ($orders as $index => $order) {
             $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
             $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-            $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+            $domesticFee = $order['domestic_fee'] * $order['exchange_rate'];
+            $officialQuotaFee = $order['official_quota_fee'];
+            $vatTax = $order['vat_tax'];
+            $importTax = $order['import_tax'];
+            $otherTax = $order['other_tax'];
+
+            $finalPrice = max($priceByWeight, $priceByVolume) +
+                $domesticFee +
+                $officialQuotaFee +
+                $vatTax +
+                $importTax +
+                $otherTax;
+
             $priceMethod = ($priceByWeight >= $priceByVolume) ? 'Cân nặng' : 'Thể tích';
 
             $total += $finalPrice;
             $totalWeight += $order['total_weight'];
             $totalVolume += $order['volume'];
             $totalQuantity += $order['quantity'];
-            $totalDomesticFee += $order['domestic_fee'];
+            $totalDomesticFee += $domesticFee;
+            $totalOfficialQuotaFee += $officialQuotaFee;
+            $totalVatTax += $vatTax;
+            $totalImportTax += $importTax;
+            $totalOtherTax += $otherTax;
 
             // Ghi các giá trị khác bằng fromArray
             $sheet->fromArray([
@@ -1857,6 +1942,10 @@ class InvoiceController extends BaseController
                 $order['price_per_kg'],
                 $order['price_per_cubic_meter'],
                 $order['domestic_fee'],
+                $officialQuotaFee,
+                $vatTax,
+                $importTax,
+                $otherTax,
                 $priceMethod,
                 $finalPrice
             ], null, "A$row");
@@ -1881,13 +1970,13 @@ class InvoiceController extends BaseController
         $sheet->getStyle('C2:C' . $lastRow)->getNumberFormat()->setFormatCode('@');
 
         // Thêm chân bảng (tfoot) giống detail.php
-        $sheet->fromArray(['Tổng', '', '', '', $totalQuantity, $totalWeight, '', $totalVolume, '', '', $totalDomesticFee, '', $total], null, "A$row");
+        $sheet->fromArray(['Tổng', '', '', '', $totalQuantity, $totalWeight, '', $totalVolume, '', '', $totalDomesticFee, $totalOfficialQuotaFee, $totalVatTax, $totalImportTax, $totalOtherTax, '', $total], null, "A$row");
         $row++;
-        $sheet->fromArray(['Phí giao hàng', '', '', '', '', '', '', '', '', '', '', '', $invoice['shipping_fee']], null, "A$row");
+        $sheet->fromArray(['Phí giao hàng', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', $invoice['shipping_fee']], null, "A$row");
         $row++;
-        $sheet->fromArray(['Phí khác', '', '', '', '', '', '', '', '', '', '', '', $invoice['other_fee']], null, "A$row");
+        $sheet->fromArray(['Phí khác', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', $invoice['other_fee']], null, "A$row");
         $row++;
-        $sheet->fromArray(['Tổng cộng', '', '', '', '', '', '', '', '', '', '', '', $total + $invoice['shipping_fee'] + $invoice['other_fee']], null, "A$row");
+        $sheet->fromArray(['Tổng cộng', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', $total + $invoice['shipping_fee'] + $invoice['other_fee']], null, "A$row");
 
         // Định dạng tên file: PXK-customer_code-id_phieuxuat
         $filename = 'PXK-' . $customer['customer_code'] . '-' . $invoiceId . '.xlsx';
@@ -2106,7 +2195,7 @@ class InvoiceController extends BaseController
             ->join('customers', 'invoices.customer_id = customers.id', 'left')
             ->join('orders', 'invoices.id = orders.invoice_id', 'left')
             ->groupBy('invoices.id')
-            ->orderBy('invoices.id', 'DESC'); // Sắp xếp theo ID tăng dần
+            ->orderBy('invoices.id', 'DESC');
 
         // Áp dụng các bộ lọc
         if (!empty($filters['invoice_id'])) {
@@ -2161,6 +2250,10 @@ class InvoiceController extends BaseController
             'Giá/kg',
             'Giá/khối',
             'Phí nội địa',
+            'Phí Chính ngạch',
+            'Thuế VAT',
+            'Thuế Nhập khẩu',
+            'Thuế khác',
             'Tính theo',
             'Tổng giá'
         ];
@@ -2367,7 +2460,7 @@ class InvoiceController extends BaseController
             foreach ($orders as $index => $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']) + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
                 $priceMethod = ($priceByWeight >= $priceByVolume) ? 'Cân nặng' : 'Thể tích';
 
                 // Ghi các giá trị khác bằng fromArray, để trống cột "Mã vận chuyển"
@@ -2389,6 +2482,10 @@ class InvoiceController extends BaseController
                     $order['price_per_kg'],
                     $order['price_per_cubic_meter'],
                     $order['domestic_fee'],
+                    $order['official_quota_fee'],
+                    $order['vat_tax'],
+                    $order['import_tax'],
+                    $order['other_tax'],
                     $priceMethod,
                     $finalPrice
                 ], null, "A$row");
@@ -2442,7 +2539,18 @@ class InvoiceController extends BaseController
             foreach ($orders as $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-                $total += max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+                $domesticFee = $order['domestic_fee'] * $order['exchange_rate'];
+                $officialQuotaFee = $order['official_quota_fee'];
+                $vatTax = $order['vat_tax'];
+                $importTax = $order['import_tax'];
+                $otherTax = $order['other_tax'];
+
+                $total += max($priceByWeight, $priceByVolume) +
+                    $domesticFee +
+                    $officialQuotaFee +
+                    $vatTax +
+                    $importTax +
+                    $otherTax;
             }
             $grandTotal = $total + $invoice['shipping_fee'] + $invoice['other_fee'];
 

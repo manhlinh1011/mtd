@@ -97,16 +97,37 @@
                                 </select>
                             </div>
                         </div>
-
+                        <hr />
+                        <div class="form-group row">
+                            <label for="official_quota_fee" class="col-sm-3 col-form-label text-right">Phí Chính Ngạch</label>
+                            <div class="col-sm-3">
+                                <input type="number" class="form-control" id="official_quota_fee" name="official_quota_fee" value="<?= number_format($order['official_quota_fee'] ?? 0, 0, ',', '.') ?>" step="0.01" required>
+                            </div>
+                            <label for="import_tax" class="col-sm-2 col-form-label text-right">Thuế NK</label>
+                            <div class="col-sm-4">
+                                <input type="number" class="form-control" id="import_tax" name="import_tax" value="<?= number_format($order['import_tax'] ?? 0, 0, ',', '.') ?>">
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="vat_tax" class="col-sm-3 col-form-label text-right">Thuế VAT</label>
+                            <div class="col-sm-3">
+                                <input type="number" class="form-control" id="vat_tax" name="vat_tax" value="<?= number_format($order['vat_tax'] ?? 0, 0, ',', '.') ?>" step="0.01" required>
+                            </div>
+                            <label for="other_tax" class="col-sm-2 col-form-label text-right">Thuế khác</label>
+                            <div class="col-sm-4">
+                                <input type="number" class="form-control" id="other_tax" name="other_tax" value="<?= number_format($order['other_tax'] ?? 0, 0, ',', '.') ?>">
+                            </div>
+                        </div>
+                        <hr />
                         <!-- Giá -->
                         <div class="form-group row">
                             <label for="domestic_fee" class="col-sm-3 col-form-label text-right">Phí nội địa</label>
                             <div class="col-sm-3">
-                                <input type="number" class="form-control" id="domestic_fee" name="domestic_fee" value="<?= $order['domestic_fee'] ?>" step="0.01" required>
+                                <input type="number" class="form-control" id="domestic_fee" name="domestic_fee" value="<?= $order['domestic_fee'] ?? 0 ?>" step="0.01" required>
                             </div>
                             <label for="exchange_rate" class="col-sm-2 col-form-label text-right">Tỷ giá</label>
                             <div class="col-sm-4">
-                                <input type="number" class="form-control" id="exchange_rate" name="exchange_rate" value="<?= $order['exchange_rate'] ?>">
+                                <input type="number" class="form-control" id="exchange_rate" name="exchange_rate" value="<?= $order['exchange_rate'] ?? 0 ?>">
                             </div>
                         </div>
 
@@ -118,7 +139,7 @@
                             </div>
                             <label for="price_per_kg" class="col-sm-2 col-form-label text-right">Giá kg</label>
                             <div class="col-sm-4">
-                                <input type="text" class="form-control" id="price_per_kg" name="price_per_kg" value="<?= number_format($order['price_per_kg'], 0, ',', '.') ?>" required>
+                                <input type="text" class="form-control" id="price_per_kg" name="price_per_kg" value="<?= number_format($order['price_per_kg'] ?? 0, 0, ',', '.') ?>" required>
                             </div>
                         </div>
 
@@ -130,7 +151,7 @@
                             </div>
                             <label for="price_per_cubic_meter" class="col-sm-2 col-form-label text-right">Giá khối</label>
                             <div class="col-sm-4">
-                                <input type="text" class="form-control" id="price_per_cubic_meter" name="price_per_cubic_meter" value="<?= number_format($order['price_per_cubic_meter'], 0, ',', '.') ?>" required>
+                                <input type="text" class="form-control" id="price_per_cubic_meter" name="price_per_cubic_meter" value="<?= number_format($order['price_per_cubic_meter'] ?? 0, 0, ',', '.') ?>" required>
                             </div>
                         </div>
 
@@ -229,6 +250,27 @@
                     <?php else: ?>
                         <p>Chưa thuộc phiếu xuất nào.</p>
                     <?php endif; ?>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mt-2">Thiết lập hoa hồng</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Cân nặng -->
+                    <form action="<?= base_url('orders/update-affiliate-pricing/' . $order['id']) ?>" method="post">
+                        <div class="form-group row">
+                            <label for="aff_price_per_kg" class="col-sm-3 col-form-label text-right">Giá Kg</label>
+                            <div class="col-sm-3">
+                                <input type="number" class="form-control" id="aff_price_per_kg" name="aff_price_per_kg" value="<?= $order['aff_price_per_kg'] ?>" step="0.01" required>
+                            </div>
+                            <label for="aff_price_per_cubic_meter" class="col-sm-2 col-form-label text-right">Giá m³</label>
+                            <div class="col-sm-4">
+                                <input type="number" class="form-control" id="aff_price_per_cubic_meter" name="aff_price_per_cubic_meter" value="<?= number_format($order['aff_price_per_cubic_meter'], 0, ',', '.') ?>" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </form>
                 </div>
             </div>
         </div>

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\FinancialTransactionModel;
 use App\Models\CustomerTransactionModel;
 use App\Models\SystemLogModel;
+use App\Models\FundModel;
 
 class FinancialController extends BaseController
 {
@@ -103,7 +104,9 @@ class FinancialController extends BaseController
 
     public function create()
     {
-        return view('financial/create');
+        $fundModel = new FundModel();
+        $funds = $fundModel->findAll();
+        return view('financial/create', ['funds' => $funds]);
     }
 
     public function store()
@@ -115,6 +118,7 @@ class FinancialController extends BaseController
         $type = $this->request->getPost('type');
         $amount = $this->request->getPost('amount');
         $description = $this->request->getPost('description');
+        $fundId = $this->request->getPost('fund_id');
         $userId = $session->get('user_id');
         $role = $session->get('role');
 
@@ -128,6 +132,7 @@ class FinancialController extends BaseController
             'amount' => $amount,
             'description' => $description,
             'created_by' => $userId,
+            'fund_id' => $fundId,
         ];
 
         // Logic xử lý trạng thái
@@ -146,15 +151,7 @@ class FinancialController extends BaseController
         $model->save($data);
         $transactionId = $model->getInsertID();
 
-        // Ghi log
-        $systemLogModel->addLog([
-            'entity_type' => 'financial_transaction',
-            'entity_id' => $transactionId,
-            'action_type' => 'create',
-            'created_by' => $userId,
-            'details' => json_encode($data),
-            'notes' => "Tạo phiếu {$type} #{$transactionId}"
-        ]);
+
 
         return redirect()->to('/financial')->with('success', 'Tạo phiếu thành công.');
     }

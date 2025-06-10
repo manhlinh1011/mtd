@@ -147,12 +147,10 @@
                                         <tr>
                                             <th>ID</th>
                                             <th>Nhập TQ</th>
-                                            <th>Nhập VN</th>
                                             <th>Mã vận chuyển</th>
                                             <th>Mã lô</th>
                                             <th>Mã bao</th>
                                             <th>Khách hàng</th>
-                                            <th>Mã phụ</th>
                                             <th>Hàng</th>
                                             <th>SL</th>
                                             <th>Số kg</th>
@@ -163,6 +161,7 @@
                                             <th>Phí tệ</th>
                                             <th>Tỷ giá</th>
                                             <th>Phí TQ</th>
+                                            <th>Phí CN</th>
                                             <th>Tổng</th>
                                             <th>TT</th>
                                             <th>Trạng thái</th>
@@ -181,16 +180,18 @@
                                                 $cach_tinh_gia = "TT";
                                             }
                                             $gianoidia_trung = ($order['domestic_fee'] * $order['exchange_rate']);
+                                            $phichinhngach = $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
                                             ?>
                                             <tr>
                                                 <td class="text-center"><?= $order['id'] ?></td>
-                                                <?php
-                                                $dateString = $order['created_at'];
-                                                $date = DateTime::createFromFormat('Y-m-d H:i:s', $dateString);
-                                                $formattedDate = $date->format('Y-m-d H:i');
-                                                ?>
-                                                <td class="text-center"><?= $formattedDate ?></td>
-                                                <td class="text-center"><?= $order['vietnam_stock_date'] ?></td>
+
+                                                <td class="text-center" style="font-size: 13px; width:160px;">
+                                                    <span class="badge badge-primary">CN</span> <?= $order['created_at'] ?><br>
+                                                    <?php if ($order['vietnam_stock_date']): ?>
+
+                                                        <span class="badge badge-success">VN</span> <?= $order['vietnam_stock_date'] ?>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="text-center">
                                                     <?= $order['tracking_code'] ?>
                                                     <?php if (!empty($order['notes'])): ?>
@@ -212,8 +213,11 @@
                                                         -
                                                     <?php endif; ?>
                                                 </td>
-                                                <td class="text-center"><a href="<?= base_url() ?>orders?customer_code=<?= $order['customer_code'] ?>"><?= $order['customer_code'] ?></a></td>
-                                                <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
+                                                <td class="text-center"><a href="<?= base_url() ?>orders?customer_code=<?= $order['customer_code'] ?>"><?= $order['customer_code'] ?></a><br>
+                                                    <?php if ($order['sub_customer_code']): ?>
+                                                        <span style="font-size: 10px;"><?= $order['sub_customer_code'] ?? '-' ?></span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="text-center"><?= $order['product_type_name'] ?></td>
                                                 <td class="text-center"><?= $order['quantity'] ?></td>
                                                 <td class="text-center"><?= $order['total_weight'] ?></td>
@@ -241,7 +245,8 @@
                                                 </td>
                                                 <td class="text-right"><?= number_format($order['exchange_rate'], 0, ',', '.') ?></td>
                                                 <td class="text-right"><?= number_format($gianoidia_trung, 0, ',', '.') ?></td>
-                                                <td class="text-right"><?= number_format($gianoidia_trung + $gia_cuoi_cung, 0, ',', '.') ?></td>
+                                                <td class="text-right"><?= number_format($phichinhngach, 0, ',', '.') ?></td>
+                                                <td class="text-right"><?= number_format($gianoidia_trung + $gia_cuoi_cung + $phichinhngach, 0, ',', '.') ?></td>
                                                 <td class="text-right" data-toggle="tooltip" data-placement="top" title="" data-original-title="KG: <?= number_format($gia_theo_cannang, 0, ',', '.') ?> - TT: <?= number_format($gia_theo_khoi, 0, ',', '.') ?>"><?= $cach_tinh_gia ?></td>
                                                 <td class="text-center">
                                                     <?php if ($order['vietnam_stock_date'] === null): ?>

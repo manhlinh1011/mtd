@@ -17,6 +17,20 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label>Chọn quỹ <span class="text-danger">*</span></label>
+                    <select name="fund_id" class="form-control" required>
+                        <option value="">-- Chọn quỹ --</option>
+                        <?php foreach ($funds as $fund): ?>
+                            <option value="<?= $fund['id'] ?>">
+                                <?= esc($fund['name']) ?>
+                                <?php if ($fund['account_number']): ?>
+                                    (<?= esc($fund['bank_name']) ?> - <?= esc($fund['account_number']) ?>)
+                                <?php endif; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Số tiền</label>
                     <input type="number" name="amount" class="form-control" required>
                 </div>

@@ -114,9 +114,14 @@
                                 <td class="text-center">
                                     <?php if ($invoice['shipping_confirmed_at'] === null): ?>
                                         <span class="badge badge-warning">Đang xuất</span>
+
                                     <?php else: ?>
                                         <span class="badge badge-success">Đã xuất</span>
                                     <?php endif; ?>
+                                    <?php if (!$invoice['has_shipping_request']): ?>
+                                        <a href="<?= base_url("shipping-manager/create/{$invoice['id']}") ?>" class="btn btn-primary btn-sm">Yêu cầu ship</a>
+                                    <?php endif; ?>
+
                                 </td>
                                 <td class="text-center">
                                     <span class="badge 

@@ -19,7 +19,11 @@ class CustomerModel extends Model
         'price_per_cubic_meter', // Thêm trường này
         'created_at',
         'balance',
-        'payment_limit_days'
+        'payment_limit_days',
+        'thread_id_zalo',
+        'msg_zalo_type',
+        'thread_id_zalo_notify_order',
+        'msg_zalo_type_notify_order'
     ];
 
     public function getCustomersWithOrderCount()

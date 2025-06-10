@@ -9,6 +9,7 @@ class FinancialTransactionModel extends Model
     protected $table = 'financial_transactions';
     protected $primaryKey = 'id';
     protected $allowedFields = [
+        'fund_id',
         'type',
         'amount',
         'description',

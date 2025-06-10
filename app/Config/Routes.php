@@ -73,6 +73,7 @@ $routes->get('/api/check-tracking', 'ApiController::checkTrackingCode');
 $routes->get('/api/check-vietnam-stock', 'ApiController::checkVietnamStockStatus');
 $routes->post('/api/update-vietnam-stock', 'ApiController::updateVietnamStockDate');
 $routes->post('/api/add-tmdt', 'ApiController::AddTMDT');
+$routes->post('/api/add-tmdt-kg16', 'ApiController::AddTMDT_KG16');
 
 
 $routes->get('exchange-rates', 'ExchangeRateController::index');
@@ -99,7 +100,7 @@ $routes->group('invoices', function ($routes) {
     $routes->post('createInvoice', 'InvoiceController::createInvoice');
     $routes->post('cart/add', 'InvoiceController::cartAdd');
     $routes->get('cart/count', 'InvoiceController::cartCount');
-    $routes->get('cart/check', 'InvoiceController::cartCheck');
+    $routes->post('cart/check', 'InvoiceController::cartCheck');
     $routes->get('create/(:num)', 'InvoiceController::create/$1');
     $routes->post('store/(:num)', 'InvoiceController::store/$1');
     $routes->get('detail/(:num)', 'InvoiceController::detail/$1');
@@ -172,3 +173,79 @@ $routes->get('/customers/sub-customers/create', 'CustomerController::subCustomer
 $routes->post('/customers/sub-customers/store', 'CustomerController::subCustomerStore');
 
 $routes->get('/api/sub-customers', 'ApiController::getSubCustomers');
+
+$routes->group('funds', function ($routes) {
+    $routes->get('/', 'FundController::index');
+    $routes->get('create', 'FundController::create');
+    $routes->post('store', 'FundController::store');
+    $routes->get('edit/(:num)', 'FundController::edit/$1');
+    $routes->post('update/(:num)', 'FundController::update/$1');
+    $routes->get('delete/(:num)', 'FundController::delete/$1');
+    $routes->get('detail/(:num)', 'FundController::detail/$1');
+});
+
+$routes->group('affiliate-mapping', function ($routes) {
+    $routes->get('/', 'AffiliateMappingController::index');
+    $routes->get('create', 'AffiliateMappingController::create');
+    $routes->post('store', 'AffiliateMappingController::store');
+    $routes->get('edit/(:num)', 'AffiliateMappingController::edit/$1');
+    $routes->post('update/(:num)', 'AffiliateMappingController::update/$1');
+    $routes->get('delete/(:num)', 'AffiliateMappingController::delete/$1');
+});
+
+$routes->get('affiliate-mapping/get-customer-sub-customers/(:num)', 'AffiliateMappingController::getCustomerSubCustomers/$1');
+
+$routes->group('affiliate-pricing', function ($routes) {
+    $routes->get('/', 'AffiliatePricingController::index');
+    $routes->get('create', 'AffiliatePricingController::create');
+    $routes->post('store', 'AffiliatePricingController::store');
+    $routes->get('edit/(:num)', 'AffiliatePricingController::edit/$1');
+    $routes->post('update/(:num)', 'AffiliatePricingController::update/$1');
+    $routes->get('delete/(:num)', 'AffiliatePricingController::delete/$1');
+    $routes->get('get-affiliate-pricing/(:num)', 'AffiliatePricingController::getAffiliatePricing/$1');
+    $routes->get('get-pricing-by-product-type/(:num)', 'AffiliatePricingController::getPricingByProductType/$1');
+});
+
+$routes->group('affiliate-commission', function ($routes) {
+    $routes->get('/', 'AffiliateCommissionController::index');
+    $routes->get('create', 'AffiliateCommissionController::create');
+    $routes->post('store', 'AffiliateCommissionController::store');
+    $routes->get('edit/(:num)', 'AffiliateCommissionController::edit/$1');
+    $routes->post('update/(:num)', 'AffiliateCommissionController::update/$1');
+    $routes->get('delete/(:num)', 'AffiliateCommissionController::delete/$1');
+    $routes->get('logs/(:num)', 'AffiliateCommissionController::logs/$1');
+});
+
+$routes->get('/zalo-api/get-statistics', 'ZaloApiController::getStatistics');
+$routes->post('/zalo-api/get-stock-orders-by-thread-id', 'ZaloApiController::getStockOrdersByThreadIdZalo');
+$routes->post('/zalo-api/get-stock-orders-sub-customer-by-thread-id', 'ZaloApiController::getStockOrdersSubCustomerByThreadIdZalo');
+$routes->post('/zalo-api/get-stock-orders-by-customer-code', 'ZaloApiController::getStockOrdersByCustomerCode');
+$routes->post('/zalo-api/get-stock-orders-by-sub-customer-code', 'ZaloApiController::getStockOrdersBySubCustomerCode');
+$routes->post('/zalo-api/set-stock-notification', 'ZaloApiController::setStockNotification');
+$routes->post('/zalo-api/set-order-notification', 'ZaloApiController::setOrderNotification');
+$routes->post('/zalo-api/set-sub-customer-stock-notification', 'ZaloApiController::setSubCustomerStockNotification');
+$routes->post('/zalo-api/set-sub-customer-order-notification', 'ZaloApiController::setSubCustomerOrderNotification');
+$routes->get('/zalo-api/list-customer-stock-notification', 'ZaloApiController::getListCustomerHasStockNotification');
+$routes->get('/zalo-api/list-sub-customer-stock-notification', 'ZaloApiController::getListSubCustomerHasStockNotification');
+$routes->get('/zalo-api/list-sub-customer-stock-notification-with-thread-id/(:segment)', 'ZaloApiController::getListSubCustomerHasStockNotificationWithThreadId/$1');
+$routes->post('/zalo-api/get-list-sub-customer-has-stock-notification-by-thread-id', 'ZaloApiController::getListSubCustomerHasStockNotificationByThreadId');
+
+$routes->get('/test', 'TestController::index');
+
+$routes->group('shipping-provider', function ($routes) {
+    $routes->get('/', 'ShippingProviderController::index');
+    $routes->get('create', 'ShippingProviderController::create');
+    $routes->post('store', 'ShippingProviderController::store');
+    $routes->get('edit/(:num)', 'ShippingProviderController::edit/$1');
+    $routes->post('update/(:num)', 'ShippingProviderController::update/$1');
+    $routes->get('delete/(:num)', 'ShippingProviderController::delete/$1');
+});
+
+$routes->group('shipping-manager', function ($routes) {
+    $routes->get('/', 'ShippingManagerController::index');
+    $routes->get('delivered', 'ShippingManagerController::delivered');
+    $routes->get('search', 'ShippingManagerController::search');
+    $routes->get('create/(:num)', 'ShippingManagerController::create/$1');
+    $routes->post('store', 'ShippingManagerController::store');
+    $routes->post('confirm/(:num)', 'ShippingManagerController::confirm/$1');
+});

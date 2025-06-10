@@ -7,6 +7,7 @@ use App\Models\CustomerTransactionModel;
 use App\Models\InvoiceModel; // Thêm model cho invoices nếu cần
 use App\Models\OrderModel;
 use App\Models\SubCustomerModel;
+use App\Models\FundModel;
 
 class CustomerController extends BaseController
 {
@@ -16,6 +17,7 @@ class CustomerController extends BaseController
     protected $orderModel;
     protected $subCustomerModel;
     protected $db;
+    protected $fundModel;
 
     public function __construct()
     {
@@ -25,6 +27,7 @@ class CustomerController extends BaseController
         $this->orderModel = new OrderModel();     // Khởi tạo nếu cần
         $this->subCustomerModel = new SubCustomerModel();
         $this->db = \Config\Database::connect();
+        $this->fundModel = new FundModel();
     }
 
     public function index()
@@ -411,6 +414,8 @@ class CustomerController extends BaseController
                 $recentInvoices = array_slice($invoices, 0, 10);
             }
 
+            $funds = $this->fundModel->findAll();
+
             return view('customers/detail', [
                 'customer' => $customer,
                 'transactions' => $transactions,
@@ -421,7 +426,8 @@ class CustomerController extends BaseController
                 'totalPayment' => $totalPayment,
                 'orderStats' => $orderStats,
                 'invoiceStats' => $invoiceStats,
-                'subCustomers' => $subCustomers
+                'subCustomers' => $subCustomers,
+                'funds' => $funds
             ]);
         } catch (\Exception $e) {
             log_message('error', '[CustomerController::detail] Error: ' . $e->getMessage());
@@ -431,33 +437,39 @@ class CustomerController extends BaseController
 
     public function deposit($id)
     {
-        if ($this->request->getMethod() === 'POST') {
-            $rules = [
-                'amount' => 'required|numeric|greater_than[0]',
-                'notes' => 'permit_empty|max_length[255]',
-            ];
+        $rules = [
+            'amount' => 'required|numeric|greater_than[0]',
+            'fund_id' => 'required|numeric|greater_than[0]'
+        ];
 
-            if (!$this->validate($rules)) {
-                return redirect()->back()->with('errors', $this->validator->getErrors());
-            }
-
-            $data = [
-                'customer_id' => $id,
-                'transaction_type' => 'deposit',
-                'amount' => $this->request->getPost('amount'),
-                'created_by' => session()->get('user_id') ?? 1, // Điều chỉnh nếu cần, mặc định là 1 nếu không có session
-                'notes' => $this->request->getPost('notes'),
-            ];
-
-            if ($this->customerTransactionModel->addTransaction($data)) {
-                cache()->delete("customer_balance_{$id}");
-                cache()->delete("invoice_stats_$id");
-                cache()->delete("order_stats_$id");
-                return redirect()->to("/customers/detail/{$id}")->with('success', 'Nạp tiền thành công.');
-            } else {
-                return redirect()->back()->with('error', 'Nạp tiền thất bại.');
-            }
+        if (!$this->validate($rules)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
+
+        $amount = $this->request->getPost('amount');
+        $fundId = $this->request->getPost('fund_id');
+        $notes = $this->request->getPost('notes');
+
+        // Tạo giao dịch nạp tiền
+        $transactionData = [
+            'customer_id' => $id,
+            'fund_id' => $fundId,
+            'transaction_type' => 'deposit',
+            'amount' => $amount,
+            'notes' => $notes,
+            'created_by' => session()->get('user_id')
+        ];
+
+        $transactionModel = new CustomerTransactionModel();
+        $transactionModel->insert($transactionData);
+
+        // Cập nhật số dư khách hàng
+        $customerModel = new CustomerModel();
+        $customer = $customerModel->find($id);
+        $newBalance = $customer['balance'] + $amount;
+        $customerModel->update($id, ['balance' => $newBalance]);
+
+        return redirect()->back()->with('success', 'Nạp tiền thành công');
     }
 
     public function invoices($id)

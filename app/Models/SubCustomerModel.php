@@ -16,7 +16,11 @@ class SubCustomerModel extends Model
         'address',
         'zalo_link',
         'email',
-        'created_at'
+        'created_at',
+        'thread_id_zalo',
+        'msg_zalo_type',
+        'thread_id_zalo_notify_order',
+        'msg_zalo_type_notify_order'
     ];
 
     // Nếu có beforeInsert, đảm bảo truy vấn rõ ràng

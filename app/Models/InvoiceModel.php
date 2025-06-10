@@ -69,11 +69,20 @@ class InvoiceModel extends Model
                 $pricePerCubicMeter = floatval($order['price_per_cubic_meter'] ?? 0);
                 $domesticFee = floatval($order['domestic_fee'] ?? 0);
                 $exchangeRate = floatval($order['exchange_rate'] ?? 0);
+                $officialQuotaFee = floatval($order['official_quota_fee'] ?? 0);
+                $vatTax = floatval($order['vat_tax'] ?? 0);
+                $importTax = floatval($order['import_tax'] ?? 0);
+                $otherTax = floatval($order['other_tax'] ?? 0);
 
                 $priceByWeight = $totalWeight * $pricePerKg;
                 $priceByVolume = $volume * $pricePerCubicMeter;
                 $finalPrice = max($priceByWeight, $priceByVolume);
-                $total += $finalPrice + ($domesticFee * $exchangeRate);
+                $total += $finalPrice +
+                    ($domesticFee * $exchangeRate) +
+                    $officialQuotaFee +
+                    $vatTax +
+                    $importTax +
+                    $otherTax;
             }
 
             // Cộng thêm phí giao hàng và phí khác
@@ -99,7 +108,7 @@ class InvoiceModel extends Model
 
         // Tính tiền vận chuyển từ các đơn hàng liên quan
         $orderBuilder = $this->db->table('orders')
-            ->select('total_weight, volume, price_per_kg, price_per_cubic_meter, domestic_fee, exchange_rate')
+            ->select('total_weight, volume, price_per_kg, price_per_cubic_meter, domestic_fee, exchange_rate, official_quota_fee, vat_tax, import_tax, other_tax')
             ->where('invoice_id', $invoiceId);
 
         $orders = $orderBuilder->get()->getResultArray();
@@ -108,7 +117,12 @@ class InvoiceModel extends Model
         foreach ($orders as $order) {
             $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
             $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
-            $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']);
+            $finalPrice = max($priceByWeight, $priceByVolume) +
+                ($order['domestic_fee'] * $order['exchange_rate']) +
+                $order['official_quota_fee'] +
+                $order['vat_tax'] +
+                $order['import_tax'] +
+                $order['other_tax'];
             $transportTotal += $finalPrice;
         }
 

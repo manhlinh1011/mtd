@@ -106,6 +106,41 @@
                         </div>
                     </div>
 
+                    <!-- Thông tin cộng tác viên -->
+                    <div class="form-group row">
+                        <label class="col-sm-2 col-form-label">Thông tin cộng tác viên:</label>
+                        <div class="col-sm-10">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="form-group row">
+                                        <label for="affiliate_balance" class="col-sm-3 col-form-label">Số dư hoa hồng:</label>
+                                        <div class="col-sm-9">
+                                            <input type="number" class="form-control" id="affiliate_balance" name="affiliate_balance" value="<?= $user['affiliate_balance'] ?? 0 ?>" step="0.01">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row">
+                                        <label for="bank_account" class="col-sm-3 col-form-label">Số tài khoản:</label>
+                                        <div class="col-sm-9">
+                                            <input type="text" class="form-control" id="bank_account" name="bank_account" placeholder="Nhập số tài khoản" value="<?= $user['bank_account'] ?? '' ?>">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row">
+                                        <label for="bank_name" class="col-sm-3 col-form-label">Tên ngân hàng:</label>
+                                        <div class="col-sm-9">
+                                            <input type="text" class="form-control" id="bank_name" name="bank_name" placeholder="Nhập tên ngân hàng" value="<?= $user['bank_name'] ?? '' ?>">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row">
+                                        <label for="account_holder" class="col-sm-3 col-form-label">Tên chủ tài khoản:</label>
+                                        <div class="col-sm-9">
+                                            <input type="text" class="form-control" id="account_holder" name="account_holder" placeholder="Nhập tên chủ tài khoản" value="<?= $user['account_holder'] ?? '' ?>">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Submit Button -->
                     <div class="form-group row">
                         <div class="col-sm-10 offset-sm-2">
