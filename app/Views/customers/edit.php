@@ -101,7 +101,17 @@
                         <div class="form-group row">
                             <label for="payment_limit_days" class="col-sm-3 col-form-label text-right">Số ngày giới hạn thanh toán</label>
                             <div class="col-sm-9">
-                                <input type="number" name="payment_limit_days" class="form-control" value="<?= $customer['payment_limit_days'] ?>" min="1" required>
+                                <input type="number" class="form-control" id="payment_limit_days" name="payment_limit_days" value="<?= $customer['payment_limit_days'] ?>" min="1">
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="payment_type" class="col-sm-3 col-form-label text-right">Loại thanh toán</label>
+                            <div class="col-sm-9">
+                                <select class="form-control" id="payment_type" name="payment_type">
+                                    <option value="postpaid" <?= $customer['payment_type'] == 'postpaid' ? 'selected' : '' ?>>Trả sau</option>
+                                    <option value="prepaid" <?= $customer['payment_type'] == 'prepaid' ? 'selected' : '' ?>>Trả trước</option>
+                                </select>
                             </div>
                         </div>
 

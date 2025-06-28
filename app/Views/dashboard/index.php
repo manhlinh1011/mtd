@@ -68,6 +68,7 @@
             <div class="col-6">
                 <div class="alert alert-info">
                     Lưu ý: Có <span class="badge bg-info px-2 py-1"><?= $totalOrdersWithZeroPrice ?></span> đơn hàng có giá cân nặng và giá khối bằng 0. Cần cập nhật lại giá trị.
+                    <a href="<?= base_url('orders/zero-price') ?>" class="btn btn-info float-end px-2 py-0 mb-1"> Xem chi tiết</a>
                 </div>
             </div>
         <?php endif; ?>

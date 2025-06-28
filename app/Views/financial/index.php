@@ -83,12 +83,14 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Ngày</th>
+                                <th>Ngày giao dịch</th>
                                 <th>Loại</th>
                                 <th>Số tiền</th>
                                 <th>Mô tả</th>
                                 <th>Trạng thái</th>
                                 <th>Người tạo</th>
                                 <th>Người duyệt</th>
+                                <th>Tài khoản thu/chi</th>
                                 <th>Thao tác</th>
                             </tr>
                         </thead>
@@ -97,6 +99,38 @@
                                 <tr>
                                     <td class="text-center"><?= $t['id'] ?></td>
                                     <td class="text-center"><?= $t['created_at'] ?></td>
+                                    <td class="text-center">
+                                        <?php if (!$t['transaction_date']): ?>
+                                            <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#updateDateModal<?= $t['id'] ?>">Cập nhật</button>
+                                            <!-- Modal cập nhật ngày giao dịch -->
+                                            <div class="modal fade" id="updateDateModal<?= $t['id'] ?>" tabindex="-1" role="dialog" aria-labelledby="updateDateModalLabel<?= $t['id'] ?>" aria-hidden="true">
+                                                <div class="modal-dialog" role="document">
+                                                    <div class="modal-content">
+                                                        <form method="post" action="<?= base_url('financial/updateTransactionDate/' . $t['id']) ?>">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title" id="updateDateModalLabel<?= $t['id'] ?>">Cập nhật ngày giao dịch</h5>
+                                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                    <span aria-hidden="true">&times;</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <div class="form-group">
+                                                                    <label>Ngày giao dịch</label>
+                                                                    <input type="date" name="transaction_date" class="form-control" value="<?= date('Y-m-d', strtotime($t['created_at'])) ?>" required>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                                                                <button type="submit" class="btn btn-primary">Lưu</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php else: ?>
+                                            <?= date('d/m/Y', strtotime($t['transaction_date'])) ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-center"><?= $t['type'] === 'income' ? 'Thu' : 'Chi' ?></td>
                                     <td class="text-center"><?= $t['type'] === 'income' ? '+' : '-' ?><?= number_format($t['amount'], 0, ',', '.') ?></td>
                                     <td class="text-center"><?= $t['description'] ?></td>
@@ -109,6 +143,7 @@
                                     </td>
                                     <td class="text-center"><?= esc($t['creator_name'] ?? 'Không xác định') ?></td>
                                     <td class="text-center"><?= esc($t['approver_name'] ?? '-') ?></td>
+                                    <td class="text-center"><?= $t['fund_name'] ?? '-' ?></td>
                                     <td class="text-center">
                                         <?php if ($t['type'] === 'expense' && $t['status'] === 'pending' && session('role') === 'Quản lý'): ?>
                                             <a href="/financial/approve/<?= $t['id'] ?>" class="btn btn-success btn-sm">Duyệt</a>
@@ -119,6 +154,11 @@
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <?php if (isset($pager)): ?>
+                        <div class="d-flex justify-content-center mt-3">
+                            <?= $pager->links('default', 'bootstrap_pagination') ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

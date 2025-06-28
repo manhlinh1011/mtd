@@ -42,7 +42,8 @@ class FundController extends Controller
             'name' => 'required|min_length[3]|max_length[255]',
             'account_number' => 'permit_empty|max_length[50]',
             'bank_name' => 'permit_empty|max_length[100]',
-            'account_holder' => 'permit_empty|max_length[255]'
+            'account_holder' => 'permit_empty|max_length[255]',
+            'payment_qr' => 'permit_empty|max_length[255]'
         ];
 
         if (!$this->validate($rules)) {
@@ -53,7 +54,8 @@ class FundController extends Controller
             'name' => $this->request->getPost('name'),
             'account_number' => $this->request->getPost('account_number'),
             'bank_name' => $this->request->getPost('bank_name'),
-            'account_holder' => $this->request->getPost('account_holder')
+            'account_holder' => $this->request->getPost('account_holder'),
+            'payment_qr' => $this->request->getPost('payment_qr')
         ];
 
         $this->fundModel->insert($data);
@@ -77,7 +79,8 @@ class FundController extends Controller
             'name' => 'required|min_length[3]|max_length[255]',
             'account_number' => 'permit_empty|max_length[50]',
             'bank_name' => 'permit_empty|max_length[100]',
-            'account_holder' => 'permit_empty|max_length[255]'
+            'account_holder' => 'permit_empty|max_length[255]',
+            'payment_qr' => 'permit_empty|max_length[255]'
         ];
 
         if (!$this->validate($rules)) {
@@ -88,7 +91,8 @@ class FundController extends Controller
             'name' => $this->request->getPost('name'),
             'account_number' => $this->request->getPost('account_number'),
             'bank_name' => $this->request->getPost('bank_name'),
-            'account_holder' => $this->request->getPost('account_holder')
+            'account_holder' => $this->request->getPost('account_holder'),
+            'payment_qr' => $this->request->getPost('payment_qr')
         ];
 
         $this->fundModel->update($id, $data);

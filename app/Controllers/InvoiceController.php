@@ -9,15 +9,20 @@ use App\Models\CustomerTransactionModel;
 use App\Models\SystemLogModel;
 use App\Models\InvoiceOrderModel;
 use App\Models\ShippingManagerModel;
+use App\Models\FundModel;
+use App\Models\SubCustomerModel;
+use Config\WebhookConfig;
 
 class InvoiceController extends BaseController
 {
 
     protected $db;
+    protected $webhookConfig; // Khai báo biến webhookConfig
 
     public function __construct()
     {
         $this->db = \Config\Database::connect();
+        $this->webhookConfig = new \Config\WebhookConfig(); // Khởi tạo biến webhookConfig
     }
 
     public function cart()
@@ -172,7 +177,7 @@ class InvoiceController extends BaseController
 
         // Cấu hình query
         $query = $invoiceModel
-            ->select('invoices.*, customers.customer_code, customers.fullname, COUNT(orders.id) as order_count, sub_customers.sub_customer_code')
+            ->select('invoices.*, customers.customer_code, customers.fullname, customers.payment_type as customer_payment_type, COUNT(orders.id) as order_count, sub_customers.sub_customer_code')
             ->join('customers', 'invoices.customer_id = customers.id', 'left')
             ->join('orders', 'invoices.id = orders.invoice_id', 'left')
             ->join('sub_customers', 'sub_customers.id = invoices.sub_customer_id', 'left')
@@ -545,6 +550,18 @@ class InvoiceController extends BaseController
         $creator = $userModel->find($invoice['created_by']);
         $shipping_confirmed_by = $userModel->find($invoice['shipping_confirmed_by']);
 
+        $paymentFundModel = new \App\Models\FundModel();
+        $paymentFunds = $paymentFundModel->findAll();
+
+        // Kiểm tra xem đã gửi Zalo trong ngày hôm nay chưa
+        $hasZaloSentToday = false;
+        if (!empty($invoice['zalo_sent_time'])) {
+            $zaloSentTime = new \DateTime($invoice['zalo_sent_time']);
+            $today = new \DateTime();
+            if ($zaloSentTime->format('Y-m-d') === $today->format('Y-m-d')) {
+                $hasZaloSentToday = true;
+            }
+        }
 
         // Tính lại total_amount với other_fee
         $total = 0;
@@ -581,7 +598,9 @@ class InvoiceController extends BaseController
             'total_amount' => $totalAmount,
             'invoiceId' => $invoiceId,
             'shipping_confirmed_by' => $shipping_confirmed_by,
-            'customers' => $customers // Truyền danh sách khách hàng vào view
+            'customers' => $customers, // Truyền danh sách khách hàng vào view
+            'paymentFunds' => $paymentFunds,
+            'has_zalo_sent_today' => $hasZaloSentToday // Truyền biến này sang view
         ]);
     }
 
@@ -1378,6 +1397,7 @@ class InvoiceController extends BaseController
         $orderModel = new OrderModel();
         $invoiceModel = new InvoiceModel();
         $customerModel = new CustomerModel();
+        $subCustomerModel = new SubCustomerModel();
         $transactionModel = new CustomerTransactionModel();
         $systemLogModel = new SystemLogModel();
 
@@ -1395,6 +1415,15 @@ class InvoiceController extends BaseController
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => 'ID khách hàng mới không hợp lệ.'
+                ]);
+            }
+
+            // Lấy sub_customer_id mới (có thể null)
+            $newSubCustomerId = $this->request->getPost('new_sub_customer_id');
+            if (!empty($newSubCustomerId) && !is_numeric($newSubCustomerId)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'ID khách hàng phụ mới không hợp lệ.'
                 ]);
             }
 
@@ -1424,6 +1453,7 @@ class InvoiceController extends BaseController
             }
 
             $originalCustomerId = $order['customer_id'];
+            $originalSubCustomerId = $order['sub_customer_id'];
             if (empty($originalCustomerId)) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -1440,6 +1470,24 @@ class InvoiceController extends BaseController
                 ]);
             }
 
+            // Kiểm tra khách hàng phụ mới (nếu có)
+            if (!empty($newSubCustomerId)) {
+                $newSubCustomer = $subCustomerModel->find($newSubCustomerId);
+                if (!$newSubCustomer) {
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'Khách hàng phụ mới không tồn tại.'
+                    ]);
+                }
+                // Kiểm tra xem sub_customer có thuộc về customer mới không
+                if ($newSubCustomer['customer_id'] != $newCustomerId) {
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'Khách hàng phụ không thuộc về khách hàng chính mới.'
+                    ]);
+                }
+            }
+
             // Tính số tiền đơn hàng
             $orderAmount = $this->calculateOrderAmount($order);
             if ($orderAmount < 0) {
@@ -1454,7 +1502,10 @@ class InvoiceController extends BaseController
 
             // Loại bỏ đơn hàng khỏi phiếu xuất và gán khách hàng mới
             $orderModel->update($orderId, ['invoice_id' => null]);
-            $orderModel->update($orderId, ['customer_id' => $newCustomerId]);
+            $orderModel->update($orderId, [
+                'customer_id' => $newCustomerId,
+                'sub_customer_id' => $newSubCustomerId ?: null
+            ]);
 
             // Xử lý tài chính nếu phiếu xuất ban đầu đã thanh toán
             if ($originalInvoice['payment_status'] === 'paid') {
@@ -1478,7 +1529,7 @@ class InvoiceController extends BaseController
             }
 
             // Ghi log hành động
-            $this->logAction($orderId, $originalInvoice, $newCustomerId, $orderAmount);
+            $this->logAction($orderId, $originalInvoice, $newCustomerId, $newSubCustomerId, $orderAmount, $originalSubCustomerId);
 
             // Kiểm tra trạng thái giao dịch
             if ($this->db->transStatus() === false) {
@@ -1511,9 +1562,25 @@ class InvoiceController extends BaseController
         }
     }
 
-    private function logAction($orderId, $originalInvoice, $newCustomerId, $orderAmount)
+    private function logAction($orderId, $originalInvoice, $newCustomerId, $newSubCustomerId, $orderAmount, $originalSubCustomerId)
     {
         $logModel = new SystemLogModel();
+
+        // Tạo mô tả chi tiết về thay đổi
+        $changeDescription = "Loại bỏ và chuyển đơn hàng #$orderId từ phiếu xuất #{$originalInvoice['id']} ";
+        $changeDescription .= "(khách hàng #{$originalInvoice['customer_id']}";
+        if ($originalSubCustomerId) {
+            $changeDescription .= ", mã phụ #$originalSubCustomerId";
+        }
+        $changeDescription .= ") ";
+        $changeDescription .= "sang khách hàng #$newCustomerId";
+        if ($newSubCustomerId) {
+            $changeDescription .= ", mã phụ #$newSubCustomerId";
+        } else {
+            $changeDescription .= " (không có mã phụ)";
+        }
+        $changeDescription .= ". Số tiền ảnh hưởng: " . number_format($orderAmount) . " đ.";
+
         $logModel->insert([
             'entity_type' => 'order',
             'entity_id' => $orderId,
@@ -1523,12 +1590,14 @@ class InvoiceController extends BaseController
                 'order_id' => $orderId,
                 'original_invoice_id' => $originalInvoice['id'],
                 'original_customer_id' => $originalInvoice['customer_id'],
+                'original_sub_customer_id' => $originalSubCustomerId,
                 'new_customer_id' => $newCustomerId,
+                'new_sub_customer_id' => $newSubCustomerId,
                 'amount_affected' => $orderAmount,
                 'original_payment_status' => $originalInvoice['payment_status'],
                 'new_payment_status' => $originalInvoice['payment_status'], // Giữ nguyên trạng thái ban đầu
             ]),
-            'notes' => "Loại bỏ và chuyển đơn hàng #$orderId từ phiếu xuất #{$originalInvoice['id']} (khách hàng #{$originalInvoice['customer_id']}) sang khách hàng #$newCustomerId. Số tiền ảnh hưởng: " . number_format($orderAmount) . " đ.",
+            'notes' => $changeDescription,
         ]);
     }
 
@@ -2584,5 +2653,169 @@ class InvoiceController extends BaseController
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
         exit();
+    }
+
+    public function notifyPayment()
+    {
+        $fundId = $this->request->getPost('fund_id');
+        $invoiceId = $this->request->getPost('invoice_id');
+
+        // Lấy thông tin quỹ
+        $fundModel = new \App\Models\FundModel();
+        $fund = $fundModel->find($fundId);
+
+        if (!$fund || empty($fund['payment_qr'])) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Quỹ ' . ($fund['name'] ?? '') . ' không có link thanh toán qr. Vui lòng bổ sung link thanh toán'
+            ]);
+        }
+
+        // Lấy thông tin phiếu xuất, khách hàng, đơn hàng...
+        $invoiceModel = new \App\Models\InvoiceModel();
+        $invoice = $invoiceModel->find($invoiceId);
+
+        // Lấy danh sách đơn hàng thuộc phiếu xuất
+        $orderModel = new \App\Models\OrderModel();
+        $orders = $orderModel->where('invoice_id', $invoiceId)->findAll();
+
+        // Kiểm tra thời gian gửi thông báo Zalo
+        if (!empty($invoice['zalo_sent_time'])) {
+            $lastSentTime = strtotime($invoice['zalo_sent_time']);
+            $currentTime = time();
+            $timeDiffMinutes = round(($currentTime - $lastSentTime) / 60); // Số phút đã trôi qua
+
+            $cooldownMinutes = 60; // Thời gian chờ 1 giờ
+
+            if ($timeDiffMinutes < $cooldownMinutes) {
+                $remainingMinutes = $cooldownMinutes - $timeDiffMinutes;
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => "Bạn mới gửi thông báo {$timeDiffMinutes} phút trước, đợi {$remainingMinutes} phút nữa bạn mới được gửi tiếp"
+                ]);
+            }
+        }
+
+        // Kiểm tra đơn hàng chưa set giá
+        $ordersNeedPrice = [];
+        foreach ($orders as $order) {
+            if (
+                (empty($order['price_per_kg']) || $order['price_per_kg'] == 0)
+                && (empty($order['price_per_cubic_meter']) || $order['price_per_cubic_meter'] == 0)
+            ) {
+                $ordersNeedPrice[] = $order['tracking_code'];
+            }
+        }
+        if (!empty($ordersNeedPrice)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Cần cập nhật giá cho các đơn hàng: ' . implode(', ', $ordersNeedPrice)
+            ]);
+        }
+
+        // Tính lại total_amount
+        $total = 0;
+        foreach ($orders as $order) {
+            $gia_theo_cannang = ($order['total_weight'] * $order['price_per_kg']);
+            $gia_theo_khoi = ($order['volume'] * $order['price_per_cubic_meter']);
+            $gia_cuoi_cung = $gia_theo_cannang;
+            if ($gia_theo_khoi > $gia_theo_cannang) {
+                $gia_cuoi_cung = $gia_theo_khoi;
+            }
+            $gianoidia_trung = ($order['domestic_fee'] * $order['exchange_rate']);
+            $tong_tien = $gia_cuoi_cung + $gianoidia_trung +
+                $order['official_quota_fee'] +
+                $order['vat_tax'] +
+                $order['import_tax'] +
+                $order['other_tax'];
+            $total += $tong_tien;
+        }
+        $totalAmount = $total + (float)$invoice['shipping_fee'] + (float)$invoice['other_fee'];
+
+        // Lấy thông tin khách hàng
+        $customerModel = new \App\Models\CustomerModel();
+        $customer = $customerModel->find($invoice['customer_id']);
+
+        // Lấy thread_id_zalo, msg_zalo_type, customer_code, customer_name theo điều kiện
+        $thread_id_zalo = null;
+        $msg_zalo_type = null;
+        $customer_code = null;
+        $customer_name = null;
+
+        // Thread ID Zalo luôn lấy từ khách hàng chính (customers)
+        $thread_id_zalo = $customer['thread_id_zalo'] ?? null;
+        $msg_zalo_type = $customer['msg_zalo_type'] ?? null; // Giả định msg_zalo_type cũng đi cùng thread_id_zalo chính
+
+        if (empty($invoice['sub_customer_id'])) {
+            // Không có mã phụ, customer_code và customer_name lấy từ customer
+            $customer_code = $customer['customer_code'] ?? null;
+            $customer_name = $customer['fullname'] ?? null;
+        } else {
+            // Có mã phụ, ưu tiên lấy customer_code và customer_name từ sub_customers
+            $subCustomerModel = new \App\Models\SubCustomerModel();
+            $subCustomer = $subCustomerModel->find($invoice['sub_customer_id']);
+
+            if (!empty($subCustomer) && !empty($subCustomer['sub_customer_code']) && !empty($subCustomer['fullname'])) {
+                $customer_code = $subCustomer['sub_customer_code'];
+                $customer_name = $subCustomer['fullname'];
+            } else {
+                // Nếu không có mã phụ hợp lệ, fallback về customer chính
+                $customer_code = $customer['customer_code'] ?? null;
+                $customer_name = $customer['fullname'] ?? null;
+            }
+        }
+
+        // Chuẩn bị danh sách mô tả đơn hàng
+        $orderDescriptions = [];
+        foreach ($orders as $order) {
+            $gia_theo_cannang = ($order['total_weight'] * $order['price_per_kg']);
+            $gia_theo_khoi = ($order['volume'] * $order['price_per_cubic_meter']);
+            $phu_thu = $order['domestic_fee'] * $order['exchange_rate'] + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
+            $phu_thu_str = $phu_thu > 0 ? ' + ' . number_format($phu_thu, 0, ',', '.') : '';
+            if ($gia_theo_khoi > $gia_theo_cannang) {
+                // Tính theo thể tích
+                $desc = $order['tracking_code'] . ' - ' . number_format($order['volume'], 2, '.', ',') . 'm3*' . number_format($order['price_per_cubic_meter'], 0, ',', '.') . $phu_thu_str . ' => ' . number_format($gia_theo_khoi + $phu_thu, 0, ',', '.') . 'đ';
+            } else {
+                // Tính theo cân nặng
+                $desc = $order['tracking_code'] . ' - ' . number_format($order['total_weight'], 2, '.', ',') . 'kg*' . number_format($order['price_per_kg'], 0, ',', '.') . $phu_thu_str . ' => ' . number_format($gia_theo_cannang + $phu_thu, 0, ',', '.') . 'đ';
+            }
+            $orderDescriptions[] = $desc;
+        }
+
+        // Chuẩn bị data gửi webhook
+        $payload = [
+            'invoice_id' => $invoiceId,
+            'customer_code' => $customer_code,
+            'customer_name' => $customer_name,
+            'payment_qr' => $fund['payment_qr'] . $totalAmount,
+            'orders' => $orderDescriptions,
+            'total_amount' => number_format($totalAmount, 0, ',', '.') . 'đ',
+            'shipping_fee' => number_format($invoice['shipping_fee'], 0, ',', '.') . 'đ',
+            'other_fee' => number_format($invoice['other_fee'], 0, ',', '.') . 'đ',
+            'thread_id_zalo' => $thread_id_zalo,
+            'msg_zalo_type' => $msg_zalo_type
+        ];
+
+        // Nếu không có thread_id_zalo thì không gửi, trả về lỗi
+        if (empty($thread_id_zalo) || empty($msg_zalo_type)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Khách hàng chưa được /setthongbao zalo để nhận thông báo thanh toán'
+            ]);
+        }
+
+        // Gửi POST tới webhook
+        $client = \Config\Services::curlrequest();
+        $response = $client->post('https://mqzcil.datadex.vn/webhook/thanhtoan', [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode($payload)
+        ]);
+
+        // Kiểm tra nếu gửi thành công và cập nhật zalo_sent_time
+        if ($response->getStatusCode() == 200) { // Giả sử status code 200 là thành công
+            $invoiceModel->update($invoiceId, ['zalo_sent_time' => date('Y-m-d H:i:s')]);
+        }
+
+        return $this->response->setJSON(['status' => 'success']);
     }
 }

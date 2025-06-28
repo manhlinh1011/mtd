@@ -61,6 +61,7 @@
             <thead>
                 <tr>
                     <th>#</th>
+                    <th>Nhập kho TQ</th>
                     <th>Mã vận chuyển</th>
                     <?php if ($invoice['sub_customer_code']): ?>
                         <th>Mã phụ</th>
@@ -115,6 +116,7 @@
                     ?>
                     <tr>
                         <td class="text-center"><?= $index + 1 ?></td>
+                        <td class="text-center"><?= $order['created_at'] ?></td>
                         <td class="text-center"><?= $order['tracking_code'] ?></td>
                         <?php if ($invoice['sub_customer_code']): ?>
                             <td class="text-center"><?= $order['sub_customer_code'] ?? '-' ?></td>
@@ -145,7 +147,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="<?= $invoice['sub_customer_code'] ? '4' : '3' ?>">Tổng</th>
+                    <th colspan="<?= $invoice['sub_customer_code'] ? '5' : '4' ?>">Tổng</th>
                     <th><?= number_format($totalQuantity, 0, ',', '.') ?></th>
                     <th><?= number_format($totalWeight, 2, ',', '.') ?></th>
                     <th></th>
@@ -209,10 +211,16 @@
                         <i class="mdi mdi-printer mr-1"></i> In Phiếu
                     </a>
 
-                    <?php if (in_array(session('role'), ['Quản lý']) && $invoice['shipping_confirmed_at'] === null): ?>
+                    <!-- <?php if (in_array(session('role'), ['Quản lý']) && $invoice['shipping_confirmed_at'] === null): ?>
                         <a href="/invoices/confirmShipping/<?= $invoice['id'] ?>" class="btn btn-success">
                             <i class="mdi mdi-truck-check mr-1"></i> Xác nhận đã giao
                         </a>
+                    <?php endif; ?> -->
+
+                    <?php if ($invoice['payment_status'] === 'unpaid' && $invoice['customer_id'] != 217): ?>
+                        <button class="btn btn-danger" data-toggle="modal" data-target="#modalNotifyPayment">
+                            <i class="mdi mdi-whatsapp"></i> Báo thanh toán Zalo
+                        </button>
                     <?php endif; ?>
 
                     <?php if (in_array(session('role'), ['Kế toán', 'Quản lý']) && $invoice['payment_status'] === 'unpaid'): ?>
@@ -485,12 +493,18 @@
                 <div class="modal-body">
                     <form id="reassignOrderForm">
                         <div class="form-group">
-                            <label for="newCustomerId">Chọn khách hàng mới:</label>
+                            <label for="newCustomerId">Chọn khách hàng chính:</label>
                             <select class="form-control" id="newCustomerId" name="new_customer_id" required>
                                 <option value="">-- Chọn khách hàng --</option>
                                 <?php foreach ($customers as $customer): ?>
                                     <option value="<?= $customer['id'] ?>"><?= $customer['customer_code'] ?> - <?= $customer['fullname'] ?></option>
                                 <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="newSubCustomerId">Chọn khách hàng phụ (tùy chọn):</label>
+                            <select class="form-control" id="newSubCustomerId" name="new_sub_customer_id">
+                                <option value="">-- Không có mã phụ --</option>
                             </select>
                         </div>
                         <input type="hidden" name="order_id" id="orderId">
@@ -505,10 +519,36 @@
         </div>
     </div>
 
+    <!-- Modal chọn quỹ thanh toán -->
+    <div class="modal fade" id="modalNotifyPayment" tabindex="-1" role="dialog" aria-labelledby="modalNotifyPaymentLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNotifyPaymentLabel">Chọn quỹ thanh toán</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="zaloSentTodayWarning" class="alert alert-warning" style="display: none;">
+                        Chú ý: Thông báo phiếu xuất này đã được gửi 1 lần ngày hôm nay rồi nhé!
+                    </div>
+                    <select id="paymentFundSelect" class="form-control">
+                        <option value="">-- Chọn quỹ --</option>
+                        <?php foreach ($paymentFunds as $fund): ?>
+                            <option value="<?= $fund['id'] ?>"><?= $fund['name'] ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="notifyPaymentMsg" class="mt-2 text-danger"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="btnSendNotifyPayment" class="btn btn-primary">Gửi thông báo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
-
-
-
 
 <?= $this->endSection() ?>
 
@@ -676,16 +716,57 @@
             $(this).val(value);
         });
 
-
         // Gắn sự kiện click cho nút "Loại bỏ và Chuyển khách hàng"
         $('.reassign-order-btn').on('click', function() {
             const orderId = $(this).data('order-id');
             $('#orderId').val(orderId);
+            // Reset form khi mở modal
+            $('#reassignOrderForm')[0].reset();
+            $('#newSubCustomerId').html('<option value="">-- Không có mã phụ --</option>');
+        });
+
+        // Xử lý khi chọn khách hàng chính - load sub_customers
+        $('#newCustomerId').on('change', function() {
+            const customerId = $(this).val();
+            const subCustomerSelect = $('#newSubCustomerId');
+
+            // Reset sub_customer dropdown
+            subCustomerSelect.html('<option value="">-- Không có mã phụ --</option>');
+
+            if (customerId) {
+                // Load sub_customers cho customer được chọn
+                $.ajax({
+                    url: '<?= base_url("customers/get-sub-customers/") ?>' + customerId,
+                    method: 'GET',
+                    success: function(response) {
+                        if (response.success && response.data.length > 0) {
+                            response.data.forEach(function(subCustomer) {
+                                subCustomerSelect.append(
+                                    $('<option></option>')
+                                    .val(subCustomer.id)
+                                    .text(subCustomer.sub_customer_code + ' - ' + subCustomer.fullname)
+                                );
+                            });
+                        }
+                    },
+                    error: function() {
+                        console.log('Không thể load danh sách khách hàng phụ');
+                    }
+                });
+            }
         });
 
         // Xử lý nút "Xác nhận" trong modal chuyển khách hàng
         $('#confirmReassignBtn').on('click', function() {
             const orderId = $('#orderId').val();
+            const newCustomerId = $('#newCustomerId').val();
+            const newSubCustomerId = $('#newSubCustomerId').val();
+
+            if (!newCustomerId) {
+                alert('Vui lòng chọn khách hàng chính!');
+                return;
+            }
+
             $.ajax({
                 url: '<?= base_url("invoices/reassignOrder/") ?>' + orderId,
                 type: 'POST',
@@ -709,6 +790,51 @@
                     $('#updateSuccessModal').modal('show');
                 }
             });
+        });
+
+        // Gắn sự kiện click cho nút "Gửi thông báo"
+        $('#btnSendNotifyPayment').click(function() {
+            var fundId = $('#paymentFundSelect').val();
+            var invoiceId = <?= $invoice['id'] ?>;
+            $('#notifyPaymentMsg').text('');
+            if (!fundId) {
+                $('#notifyPaymentMsg').text('Vui lòng chọn quỹ thanh toán!');
+                return;
+            }
+            $.ajax({
+                url: '<?= base_url('invoices/notify-payment') ?>',
+                method: 'POST',
+                data: {
+                    fund_id: fundId,
+                    invoice_id: invoiceId
+                },
+                success: function(res) {
+                    if (res.status === 'error') {
+                        $('#notifyPaymentMsg').text(res.message);
+                    } else {
+                        $('#notifyPaymentMsg').removeClass('text-danger').addClass('text-success').text('Đã gửi thông báo thành công!');
+                        setTimeout(function() {
+                            $('#modalNotifyPayment').modal('hide');
+                        }, 1500);
+                    }
+                },
+                error: function() {
+                    $('#notifyPaymentMsg').text('Có lỗi xảy ra, vui lòng thử lại!');
+                }
+            });
+        });
+
+        // Xử lý khi modal Báo thanh toán Zalo được hiển thị
+        $('#modalNotifyPayment').on('show.bs.modal', function() {
+            var hasZaloSentToday = <?= $has_zalo_sent_today ? 'true' : 'false' ?>;
+            if (hasZaloSentToday) {
+                $('#zaloSentTodayWarning').show();
+                $('#notifyPaymentMsg').text(''); // Xóa thông báo cũ nếu có
+            } else {
+                $('#zaloSentTodayWarning').hide();
+                $('#btnSendNotifyPayment').prop('disabled', false);
+                $('#notifyPaymentMsg').text(''); // Xóa thông báo cũ nếu có
+            }
         });
     });
 
@@ -734,7 +860,6 @@
         border-top-left-radius: 10px;
         border-top-right-radius: 10px;
     }
-
 
     .modal-body {
         font-size: 16px;

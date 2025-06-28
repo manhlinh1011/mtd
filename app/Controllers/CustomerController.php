@@ -50,8 +50,9 @@ class CustomerController extends BaseController
                 'zalo_link' => 'permit_empty|valid_url',
                 'email' => 'permit_empty|valid_email',
                 'customer_code' => 'required|regex_match[/^[\p{L}0-9\- ]+$/u]|max_length[50]|is_unique[customers.customer_code]',
-                'price_per_kg' => 'required|integer|greater_than_equal_to[0]', // Kiểm tra giá 1kg
-                'price_per_cubic_meter' => 'required|integer|greater_than_equal_to[0]' // Kiểm tra giá 1 mét khối
+                'price_per_kg' => 'required|integer|greater_than_equal_to[0]',
+                'price_per_cubic_meter' => 'required|integer|greater_than_equal_to[0]',
+                'payment_type' => 'required|in_list[prepaid,postpaid]'
             ];
 
             // Quy định các thông báo lỗi
@@ -90,6 +91,10 @@ class CustomerController extends BaseController
                     'required' => 'Giá cho 1 mét khối là bắt buộc.',
                     'integer' => 'Giá cho 1 mét khối phải là số nguyên.',
                     'greater_than_equal_to' => 'Giá cho 1 mét khối không được nhỏ hơn 0.'
+                ],
+                'payment_type' => [
+                    'required' => 'Loại thanh toán là bắt buộc.',
+                    'in_list' => 'Loại thanh toán không hợp lệ.'
                 ]
             ];
 
@@ -110,7 +115,8 @@ class CustomerController extends BaseController
                 'customer_code' => $this->request->getPost('customer_code'),
                 'price_per_kg' => $this->request->getPost('price_per_kg'),
                 'price_per_cubic_meter' => $this->request->getPost('price_per_cubic_meter'),
-                'payment_limit_days' => $this->request->getPost('payment_limit_days') ?? 15 // Mặc định là 15 ngày
+                'payment_limit_days' => $this->request->getPost('payment_limit_days') ?? 15,
+                'payment_type' => $this->request->getPost('payment_type')
             ];
 
             if ($this->customerModel->insert($data)) {
@@ -141,7 +147,8 @@ class CustomerController extends BaseController
                 'email' => 'permit_empty|valid_email',
                 'price_per_kg' => 'required|integer|greater_than_equal_to[0]',
                 'price_per_cubic_meter' => 'required|integer|greater_than_equal_to[0]',
-                'payment_limit_days' => 'required|integer|greater_than_equal_to[1]'
+                'payment_limit_days' => 'required|integer|greater_than_equal_to[1]',
+                'payment_type' => 'required|in_list[prepaid,postpaid]'
             ];
 
             if (!$this->validate($rules)) {
@@ -158,7 +165,8 @@ class CustomerController extends BaseController
                 'email' => $this->request->getPost('email'),
                 'price_per_kg' => $this->request->getPost('price_per_kg'),
                 'price_per_cubic_meter' => $this->request->getPost('price_per_cubic_meter'),
-                'payment_limit_days' => $this->request->getPost('payment_limit_days') ?? 15
+                'payment_limit_days' => $this->request->getPost('payment_limit_days') ?? 15,
+                'payment_type' => $this->request->getPost('payment_type')
             ];
 
             if ($this->customerModel->update($id, $data)) {
@@ -449,6 +457,10 @@ class CustomerController extends BaseController
         $amount = $this->request->getPost('amount');
         $fundId = $this->request->getPost('fund_id');
         $notes = $this->request->getPost('notes');
+        $transactionDate = $this->request->getPost('transaction_date');
+        if (empty($transactionDate)) {
+            $transactionDate = date('Y-m-d');
+        }
 
         // Tạo giao dịch nạp tiền
         $transactionData = [
@@ -457,7 +469,8 @@ class CustomerController extends BaseController
             'transaction_type' => 'deposit',
             'amount' => $amount,
             'notes' => $notes,
-            'created_by' => session()->get('user_id')
+            'created_by' => session()->get('user_id'),
+            'transaction_date' => $transactionDate,
         ];
 
         $transactionModel = new CustomerTransactionModel();
@@ -919,5 +932,27 @@ class CustomerController extends BaseController
 
         // Tính toán lại số dư
         return redirect()->to('/customers/detail/' . $id)->with('success', 'Số dư đã được cập nhật mới nhất.');
+    }
+
+    public function getSubCustomers($customerId)
+    {
+        // Kiểm tra customer có tồn tại không
+        $customer = $this->customerModel->find($customerId);
+        if (!$customer) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Khách hàng không tồn tại'
+            ]);
+        }
+
+        // Lấy danh sách sub_customers của customer này
+        $subCustomers = $this->subCustomerModel
+            ->where('customer_id', $customerId)
+            ->findAll();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'data' => $subCustomers
+        ]);
     }
 }

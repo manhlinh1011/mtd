@@ -20,7 +20,8 @@ class InvoiceModel extends Model
         'created_at',
         'shipping_confirmed_by',
         'shipping_confirmed_at',
-        'sub_customer_id'
+        'sub_customer_id',
+        'zalo_sent_time'
     ];
 
     /**

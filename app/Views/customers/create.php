@@ -114,7 +114,15 @@
 
                 <div class="form-group mb-3">
                     <label for="payment_limit_days">Số ngày giới hạn thanh toán</label>
-                    <input type="number" name="payment_limit_days" id="payment_limit_days" class="form-control" placeholder="Nhập số ngày giới hạn thanh toán" value="15" required>
+                    <input type="number" class="form-control" id="payment_limit_days" name="payment_limit_days" value="15" min="1">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="payment_type">Loại thanh toán</label>
+                    <select class="form-control" id="payment_type" name="payment_type">
+                        <option value="postpaid">Trả sau</option>
+                        <option value="prepaid" selected>Trả trước</option>
+                    </select>
                 </div>
 
                 <div class="form-group">

@@ -67,6 +67,7 @@
                                     <th class="text-center">Ngày nhập</th>
                                     <th class="text-center">Mã bao</th>
                                     <th class="text-center">Số đơn</th>
+                                    <th class="text-center">Tổng kg</th>
                                     <th class="text-center">Thao tác</th>
                                 </tr>
                             </thead>
@@ -86,6 +87,7 @@
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center"><?= $package['order_count'] ?></td>
+                                        <td class="text-center"><?= number_format($package['total_weight'], 2, ',', '.') ?></td>
                                         <td class="text-center">
                                             <a href="<?= base_url('packages/detail/' . ($package['package_code'] ? $package['package_code'] : 'no-code') . '/' . $package['package_date']) ?>"
                                                 class="btn btn-info btn-sm">

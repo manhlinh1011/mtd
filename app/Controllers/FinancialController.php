@@ -12,11 +12,15 @@ class FinancialController extends BaseController
     public function index()
     {
         $model = new FinancialTransactionModel();
+        $perPage = 20;
+        $page = (int) ($this->request->getGet('page') ?? 1);
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
-                               u2.fullname as approver_name')
+                               u2.fullname as approver_name,
+                               funds.name as fund_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
+            ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
         // Xử lý bộ lọc
@@ -33,7 +37,8 @@ class FinancialController extends BaseController
             $query->where('created_at <=', $dateTo . ' 23:59:59');
         }
 
-        $transactions = $query->findAll();
+        $transactions = $query->paginate($perPage, 'default', $page);
+        $pager = $model->pager;
 
         $customerTransactionModel = new CustomerTransactionModel();
         $totalCustomerDeposit = $customerTransactionModel->where('transaction_type', 'deposit')->selectSum('amount')->first()['amount'] ?? 0;
@@ -52,6 +57,7 @@ class FinancialController extends BaseController
             'totalExpense' => $totalExpense,
             'balance' => $balance,
             'totalCustomerDeposit' => $totalCustomerDeposit,
+            'pager' => $pager,
         ]);
     }
 
@@ -77,9 +83,11 @@ class FinancialController extends BaseController
         $model = new FinancialTransactionModel();
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
-                               u2.fullname as approver_name')
+                               u2.fullname as approver_name,
+                               funds.name as fund_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
+            ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
             ->where('type', 'income')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
@@ -92,9 +100,11 @@ class FinancialController extends BaseController
         $model = new FinancialTransactionModel();
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
-                               u2.fullname as approver_name')
+                               u2.fullname as approver_name,
+                               funds.name as fund_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
+            ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
             ->where('type', 'expense')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
@@ -121,6 +131,10 @@ class FinancialController extends BaseController
         $fundId = $this->request->getPost('fund_id');
         $userId = $session->get('user_id');
         $role = $session->get('role');
+        $transactionDate = $this->request->getPost('transaction_date');
+        if (empty($transactionDate)) {
+            $transactionDate = date('Y-m-d');
+        }
 
         // Kiểm tra dữ liệu
         if (empty($type) || empty($amount) || empty($description)) {
@@ -133,6 +147,7 @@ class FinancialController extends BaseController
             'description' => $description,
             'created_by' => $userId,
             'fund_id' => $fundId,
+            'transaction_date' => $transactionDate,
         ];
 
         // Logic xử lý trạng thái
@@ -150,8 +165,6 @@ class FinancialController extends BaseController
 
         $model->save($data);
         $transactionId = $model->getInsertID();
-
-
 
         return redirect()->to('/financial')->with('success', 'Tạo phiếu thành công.');
     }
@@ -190,5 +203,56 @@ class FinancialController extends BaseController
         ]);
 
         return redirect()->to('/financial')->with('success', 'Duyệt phiếu thành công.');
+    }
+
+    public function reject($id)
+    {
+        $session = session();
+        $model = new FinancialTransactionModel();
+        $systemLogModel = new SystemLogModel();
+
+        if ($session->get('role') !== 'Quản lý') {
+            return redirect()->to('/financial')->with('error', 'Bạn không có quyền từ chối phiếu.');
+        }
+
+        $transaction = $model->find($id);
+        if (!$transaction || $transaction['type'] !== 'expense' || $transaction['status'] !== 'pending') {
+            return redirect()->to('/financial')->with('error', 'Phiếu không hợp lệ hoặc đã được xử lý.');
+        }
+
+        $data = [
+            'status' => 'rejected',
+            'approved_by' => $session->get('user_id'),
+            'approved_at' => date('Y-m-d H:i:s')
+        ];
+
+        $model->update($id, $data);
+
+        // Ghi log
+        $systemLogModel->addLog([
+            'entity_type' => 'financial_transaction',
+            'entity_id' => $id,
+            'action_type' => 'reject',
+            'created_by' => $session->get('user_id'),
+            'details' => json_encode($data),
+            'notes' => "Từ chối phiếu chi #{$id}"
+        ]);
+
+        return redirect()->to('/financial')->with('success', 'Đã từ chối phiếu chi thành công.');
+    }
+
+    public function updateTransactionDate($id)
+    {
+        $model = new FinancialTransactionModel();
+        $transaction = $model->find($id);
+        if (!$transaction) {
+            return redirect()->back()->with('error', 'Không tìm thấy phiếu thu/chi.');
+        }
+        $transactionDate = $this->request->getPost('transaction_date');
+        if (empty($transactionDate)) {
+            return redirect()->back()->with('error', 'Vui lòng chọn ngày giao dịch.');
+        }
+        $model->update($id, ['transaction_date' => $transactionDate]);
+        return redirect()->back()->with('success', 'Cập nhật ngày giao dịch thành công.');
     }
 }

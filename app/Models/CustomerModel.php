@@ -23,7 +23,8 @@ class CustomerModel extends Model
         'thread_id_zalo',
         'msg_zalo_type',
         'thread_id_zalo_notify_order',
-        'msg_zalo_type_notify_order'
+        'msg_zalo_type_notify_order',
+        'payment_type'
     ];
 
     public function getCustomersWithOrderCount()

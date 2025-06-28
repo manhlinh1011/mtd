@@ -42,6 +42,11 @@
                     <input type="text" class="form-control" id="account_holder" name="account_holder" value="<?= $fund['account_holder'] ?>">
                 </div>
 
+                <div class="mb-3">
+                    <label for="payment_qr" class="form-label">QR thanh toán</label>
+                    <input type="text" class="form-control" id="payment_qr" name="payment_qr" value="<?= $fund['payment_qr'] ?>">
+                </div>
+
                 <div class="text-end">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Cập nhật

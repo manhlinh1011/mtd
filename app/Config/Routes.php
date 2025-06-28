@@ -64,6 +64,10 @@ $routes->group('orders', function ($routes) {
     $routes->post('update/(:num)', 'OrderController::update/$1');
     $routes->get('export', 'OrderController::exportToExcel');
     $routes->post('update-bulk', 'OrderController::updateBulk');
+    $routes->get('export-vn-today', 'OrderController::exportVietnamStockToday');
+    $routes->get('export-excel-by-filter', 'OrderController::exportExcelByFilter');
+    $routes->get('get-order-count', 'OrderController::getOrderCount');
+    $routes->get('zero-price', 'OrderController::zeroPrice');
 });
 
 $routes->get('/api/customers', 'ApiController::getAllCustomers');
@@ -143,8 +147,6 @@ $routes->post('/orders/updateVietnamStockDateUI', 'OrderController::updateVietna
 $routes->get('/orders/get-sub-customers', 'OrderController::getSubCustomers');
 $routes->get('/orders/get-sub-customers-by-code', 'OrderController::getSubCustomersByCode');
 
-$routes->get('/orders/export-vn-today', 'OrderController::exportVietnamStockToday');
-
 $routes->get('packages', 'PackageController::index');
 $routes->get('packages/detail/(:segment)/(:segment)', 'PackageController::detail/$1/$2');
 
@@ -155,14 +157,18 @@ $routes->get('orders/vietnam-stock', 'OrderController::vietnamStock');
 $routes->get('/invoices/export-excel/(:num)', 'InvoiceController::exportExcel/$1');
 $routes->get('/invoices/export-excel-by-filter', 'InvoiceController::exportInvoicesByFilter');
 $routes->get('/invoices/export-excel-by-select', 'InvoiceController::exportExcelBySelect');
+$routes->post('/invoices/notify-payment', 'InvoiceController::notifyPayment');
+
 $routes->group('financial', function ($routes) {
     $routes->get('/', 'FinancialController::index');
     $routes->get('create', 'FinancialController::create');
     $routes->post('store', 'FinancialController::store');
     $routes->get('approve/(:num)', 'FinancialController::approve/$1');
+    $routes->get('reject/(:num)', 'FinancialController::reject/$1');
     $routes->get('income', 'FinancialController::income');
     $routes->get('expense', 'FinancialController::expense');
     $routes->get('dashboard', 'FinancialController::dashboard');
+    $routes->post('updateTransactionDate/(:num)', 'FinancialController::updateTransactionDate/$1');
 });
 $routes->get('/customers/sub-customers', 'CustomerController::subCustomerIndex');
 $routes->get('/customers/sub-edit/(:num)', 'CustomerController::subCustomerEdit/$1');
@@ -248,4 +254,23 @@ $routes->group('shipping-manager', function ($routes) {
     $routes->get('create/(:num)', 'ShippingManagerController::create/$1');
     $routes->post('store', 'ShippingManagerController::store');
     $routes->post('confirm/(:num)', 'ShippingManagerController::confirm/$1');
+    $routes->get('get-shipping-details/(:num)', 'ShippingManagerController::getShippingDetails/$1');
 });
+
+$routes->get('customers/get-sub-customers/(:num)', 'CustomerController::getSubCustomers/$1');
+
+// Order Inspection Routes
+$routes->group('order-inspections', function ($routes) {
+    $routes->get('/', 'OrderInspectionController::index');
+    $routes->get('create', 'OrderInspectionController::create');
+    $routes->post('store', 'OrderInspectionController::store');
+    $routes->get('edit/(:num)', 'OrderInspectionController::edit/$1');
+    $routes->post('update/(:num)', 'OrderInspectionController::update/$1');
+    $routes->post('delete/(:num)', 'OrderInspectionController::delete/$1');
+    $routes->post('mark-as-notified/(:num)', 'OrderInspectionController::markAsNotified/$1');
+});
+
+// API for C# client
+$routes->get('/api/pending-inspections', 'OrderInspectionController::getPendingInspections');
+$routes->post('/api/confirm-notification', 'OrderInspectionController::confirmNotification');
+$routes->post('/api/set-inspection', 'OrderInspectionController::setInspectionByApi');

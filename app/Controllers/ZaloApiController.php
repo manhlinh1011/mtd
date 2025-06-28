@@ -396,7 +396,7 @@ class ZaloApiController extends Controller
 
             return $this->response->setJSON([
                 'status' => 'success',
-                'message' => 'Đơn hàng về kho Việt Nam sẽ được thống báo ngay lập tức cho khách hàng: ' . $customerCode,
+                'message' => 'Đơn hàng về kho Việt Nam sẽ được thông báo ngay lập tức cho khách hàng: ' . $customerCode,
                 'data' => [
                     'customer_code' => $customerCode,
                     'thread_id_zalo_notify_order' => $threadIdZalo,
@@ -457,7 +457,7 @@ class ZaloApiController extends Controller
 
             return $this->response->setJSON([
                 'status' => 'success',
-                'message' => 'Đơn hàng về kho Việt Nam sẽ được thống báo ngay lập tức cho khách hàng mã phụ: ' . $subCustomerCode,
+                'message' => 'Đơn hàng về kho Việt Nam sẽ được thông báo ngay lập tức cho khách hàng mã phụ: ' . $subCustomerCode,
                 'data' => [
                     'sub_customer_code' => $subCustomerCode,
                     'thread_id_zalo_notify_order' => $threadIdZalo,

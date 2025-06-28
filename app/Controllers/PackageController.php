@@ -25,13 +25,13 @@ class PackageController extends BaseController
         $startDate = $this->request->getGet('start_date') ?? '';
         $endDate = $this->request->getGet('end_date') ?? '';
 
-        // Lấy danh sách mã bao được gộp theo ngày
-        $builder = $this->db->table('orders')
-            ->select('DATE(created_at) as package_date, package_code, COUNT(*) as order_count')
-            ->groupBy('DATE(created_at), package_code');
-
-        // Thêm điều kiện tìm kiếm
         if ($search) {
+            // Nếu có search, phân trang theo số lượng bao (không theo ngày)
+            $builder = $this->db->table('orders')
+                ->select('DATE(created_at) as package_date, package_code, COUNT(*) as order_count, SUM(total_weight) as total_weight')
+                ->groupBy('DATE(created_at), package_code')
+                ->orderBy('package_date', 'DESC')
+                ->orderBy('package_code', 'ASC');
             if ($search === 'no-code') {
                 $builder->groupStart()
                     ->where('package_code IS NULL', null, false)
@@ -40,40 +40,68 @@ class PackageController extends BaseController
             } else {
                 $builder->where('package_code', $search);
             }
+            if ($startDate) {
+                $builder->where('DATE(created_at) >=', $startDate);
+            }
+            if ($endDate) {
+                $builder->where('DATE(created_at) <=', $endDate);
+            }
+            $total = $builder->countAllResults(false);
+            $builder->limit($perPage, ($page - 1) * $perPage);
+            $packages = $builder->get()->getResultArray();
+            $pager = service('pager');
+            $pager->setPath('packages');
+            $pager->makeLinks($page, $perPage, $total, 'bootstrap_pagination');
+            $data = [
+                'packages' => $packages,
+                'pager' => $pager,
+                'search' => $search,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'current_package_date' => null,
+                'total_package_days' => null
+            ];
+            return view('packages/index', $data);
         }
 
+        // Nếu không search, vẫn phân trang theo ngày như hiện tại
+        $perPage = 1; // Mỗi trang là 1 ngày
+        // Lấy danh sách các ngày có bao
+        $dateBuilder = $this->db->table('orders')
+            ->select('DATE(created_at) as package_date')
+            ->groupBy('DATE(created_at)')
+            ->orderBy('package_date', 'DESC');
         if ($startDate) {
-            $builder->where('DATE(created_at) >=', $startDate);
+            $dateBuilder->where('DATE(created_at) >=', $startDate);
         }
-
         if ($endDate) {
-            $builder->where('DATE(created_at) <=', $endDate);
+            $dateBuilder->where('DATE(created_at) <=', $endDate);
         }
-
-        // Clone query để đếm tổng số bản ghi
-        $countBuilder = clone $builder;
-        $total = $countBuilder->countAllResults(false);
-
-        // Thêm phân trang và sắp xếp
-        $builder->orderBy('package_date', 'DESC')
-            ->orderBy('package_code', 'ASC')
-            ->limit($perPage, ($page - 1) * $perPage);
-
-        $packages = $builder->get()->getResultArray();
-
-        // Tạo đối tượng pager
+        $dates = $dateBuilder->get()->getResultArray();
+        $dateList = array_column($dates, 'package_date');
+        $totalDays = count($dateList);
+        $currentDate = $dateList[$page - 1] ?? null;
+        $packages = [];
+        if ($currentDate) {
+            $builder = $this->db->table('orders')
+                ->select('DATE(created_at) as package_date, package_code, COUNT(*) as order_count, SUM(total_weight) as total_weight')
+                ->where('DATE(created_at)', $currentDate)
+                ->groupBy('DATE(created_at), package_code')
+                ->orderBy('package_code', 'ASC');
+            $packages = $builder->get()->getResultArray();
+        }
         $pager = service('pager');
         $pager->setPath('packages');
-        $pager->makeLinks($page, $perPage, $total, 'bootstrap_pagination');
-
+        $pager->makeLinks($page, 1, $totalDays, 'bootstrap_pagination');
         $data = [
             'packages' => $packages,
             'pager' => $pager,
             'search' => $search,
             'start_date' => $startDate,
-            'end_date' => $endDate
+            'end_date' => $endDate,
+            'current_package_date' => $currentDate,
+            'total_package_days' => $totalDays
         ];
-
         return view('packages/index', $data);
     }
 

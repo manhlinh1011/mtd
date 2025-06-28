@@ -29,7 +29,9 @@ class OrderController extends BaseController
             'tracking_code' => $this->request->getGet('tracking_code'),
             'customer_code' => $this->request->getGet('customer_code') ?? 'ALL',
             'from_date' => $this->request->getGet('from_date'),
-            'to_date' => $this->request->getGet('to_date')
+            'to_date' => $this->request->getGet('to_date'),
+            'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
+            'order_code' => $this->request->getGet('order_code')
         ];
 
         // Lấy thông tin mã phụ từ GET
@@ -58,6 +60,10 @@ class OrderController extends BaseController
             $query->like('orders.tracking_code', $filters['tracking_code']);
         }
 
+        if (!empty($filters['order_code'])) {
+            $query->like('orders.order_code', $filters['order_code']);
+        }
+
         if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
             $query->where('customers.customer_code', $filters['customer_code']);
 
@@ -81,6 +87,26 @@ class OrderController extends BaseController
             $query->where('orders.created_at <=', $filters['to_date'] . ' 23:59:59');
         }
 
+        // Thêm điều kiện lọc theo trạng thái giao hàng
+        if (!empty($filters['shipping_status']) && $filters['shipping_status'] !== 'ALL') {
+            switch ($filters['shipping_status']) {
+                case 'china_stock':
+                    $query->where('orders.vietnam_stock_date IS NULL');
+                    break;
+                case 'in_stock':
+                    $query->where('orders.vietnam_stock_date IS NOT NULL')
+                        ->where('orders.invoice_id IS NULL');
+                    break;
+                case 'pending_shipping':
+                    $query->where('orders.invoice_id IS NOT NULL')
+                        ->where('i.shipping_confirmed_at IS NULL');
+                    break;
+                case 'shipped':
+                    $query->where('i.shipping_confirmed_at IS NOT NULL');
+                    break;
+            }
+        }
+
         // Lấy dữ liệu phân trang
         $data['orders'] = $query->paginate($perPage);
         $data['pager'] = $this->orderModel->pager;
@@ -89,12 +115,25 @@ class OrderController extends BaseController
         $customerModel = new \App\Models\CustomerModel();
         $data['customers'] = $customerModel->select('customer_code, fullname')->orderBy('customer_code', 'ASC')->findAll();
 
+        // Lấy danh sách mã lô để hiển thị dropdown
+        $orderCodes = $this->orderModel->distinct()
+            ->select('order_code')
+            ->where('order_code IS NOT NULL')
+            ->where('order_code !=', '')
+            ->orderBy('order_code', 'ASC')
+            ->findAll();
+
+        // Chuyển đổi kết quả thành mảng đơn giản
+        $data['order_codes'] = array_column($orderCodes, 'order_code');
+
         // Truyền giá trị tìm kiếm vào View
         $data['tracking_code'] = $filters['tracking_code'];
         $data['customer_code'] = $filters['customer_code'];
         $data['from_date'] = $filters['from_date'];
         $data['to_date'] = $filters['to_date'];
         $data['sub_customer_id'] = $subCustomerId;
+        $data['shipping_status'] = $filters['shipping_status'];
+        $data['order_code'] = $filters['order_code'];
 
         return view('orders/index', $data);
     }
@@ -1639,5 +1678,424 @@ class OrderController extends BaseController
             }
             return '<div class="alert alert-info">Không có bản ghi nào cần cập nhật (ngày nhập kho đã tồn tại).</div>';
         }
+    }
+
+    public function exportExcelByFilter()
+    {
+        try {
+            // Lấy thông tin tìm kiếm từ GET
+            $filters = [
+                'tracking_code' => $this->request->getGet('tracking_code'),
+                'customer_code' => $this->request->getGet('customer_code') ?? 'ALL',
+                'from_date' => $this->request->getGet('from_date'),
+                'to_date' => $this->request->getGet('to_date'),
+                'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
+                'order_code' => $this->request->getGet('order_code'),
+                'sub_customer_id' => $this->request->getGet('sub_customer_id') ?? 'ALL',
+                'export_type' => $this->request->getGet('export_type') ?? 'recent_1000' // recent_1000, all
+            ];
+
+            // Cấu hình query cho danh sách đơn hàng
+            $query = $this->orderModel
+                ->select('orders.*, 
+                  customers.fullname AS customer_name, 
+                  customers.customer_code AS customer_code, 
+                  product_types.name AS product_type_name, 
+                  i.shipping_confirmed_at, 
+                  i.id AS invoice_id,
+                  sub_customers.sub_customer_code')
+                ->join('customers', 'customers.id = orders.customer_id', 'left')
+                ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+                ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+                ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+                ->orderBy('orders.id', 'DESC');
+
+            // Thêm điều kiện tìm kiếm cho danh sách
+            if (!empty($filters['tracking_code'])) {
+                $query->like('orders.tracking_code', $filters['tracking_code']);
+            }
+
+            if (!empty($filters['order_code'])) {
+                $query->like('orders.order_code', $filters['order_code']);
+            }
+
+            if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
+                $query->where('customers.customer_code', $filters['customer_code']);
+
+                // Kiểm tra nếu có lọc theo mã phụ
+                if ($filters['sub_customer_id'] !== 'ALL') {
+                    if ($filters['sub_customer_id'] === 'NONE') {
+                        // Lọc các đơn hàng không có mã phụ
+                        $query->where('orders.sub_customer_id IS NULL');
+                    } else {
+                        // Lọc theo mã phụ cụ thể
+                        $query->where('orders.sub_customer_id', $filters['sub_customer_id']);
+                    }
+                }
+            }
+
+            if (!empty($filters['from_date'])) {
+                $query->where('orders.created_at >=', $filters['from_date'] . ' 00:00:00');
+            }
+
+            if (!empty($filters['to_date'])) {
+                $query->where('orders.created_at <=', $filters['to_date'] . ' 23:59:59');
+            }
+
+            // Thêm điều kiện lọc theo trạng thái giao hàng
+            if (!empty($filters['shipping_status']) && $filters['shipping_status'] !== 'ALL') {
+                switch ($filters['shipping_status']) {
+                    case 'china_stock':
+                        $query->where('orders.vietnam_stock_date IS NULL');
+                        break;
+                    case 'in_stock':
+                        $query->where('orders.vietnam_stock_date IS NOT NULL')
+                            ->where('orders.invoice_id IS NULL');
+                        break;
+                    case 'pending_shipping':
+                        $query->where('orders.invoice_id IS NOT NULL')
+                            ->where('i.shipping_confirmed_at IS NULL');
+                        break;
+                    case 'shipped':
+                        $query->where('i.shipping_confirmed_at IS NOT NULL');
+                        break;
+                }
+            }
+
+            // Giới hạn số lượng bản ghi dựa trên export_type
+            if ($filters['export_type'] === 'recent_1000') {
+                $query->limit(1000);
+            }
+
+            // Lấy dữ liệu
+            $orders = $query->findAll();
+
+            if (empty($orders)) {
+                session()->setFlashdata('error', 'Không có đơn hàng nào để xuất Excel.');
+                return redirect()->to('/orders');
+            }
+
+            // Tạo file Excel bằng PhpSpreadsheet
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Đặt tiêu đề các cột
+            $headers = [
+                'ID',
+                'Nhập TQ',
+                'Nhập VN',
+                'Mã vận chuyển',
+                'Mã lô',
+                'Mã bao',
+                'Khách hàng',
+                'Mã phụ', // Đưa mã phụ sau mã khách hàng
+                'Hàng',
+                'SL',
+                'Số kg',
+                'Dài',
+                'Rộng',
+                'Cao',
+                'Khối',
+                'Giá kg',
+                'Giá Khối',
+                'Phí tệ',
+                'Tỷ giá',
+                'Phí TQ',
+                'Phí Chính ngạch',
+                'Thuế VAT',
+                'Thuế NK',
+                'Thuế khác',
+                'Cước vận chuyển',
+                'Tổng',
+                'TT',
+                'Trạng thái'
+            ];
+            $sheet->fromArray($headers, null, 'A1');
+
+            // Thêm dữ liệu
+            $row = 2;
+            foreach ($orders as $order) {
+                $gia_theo_cannang = $order['total_weight'] * $order['price_per_kg'];
+                $gia_theo_khoi = $order['volume'] * $order['price_per_cubic_meter'];
+                $gia_cuoi_cung = max($gia_theo_cannang, $gia_theo_khoi); // Lấy giá trị lớn hơn
+                $cach_tinh_gia = ($gia_theo_khoi > $gia_theo_cannang) ? 'TT' : 'KG';
+                $gianoidia_trung = $order['domestic_fee'] * $order['exchange_rate'];
+
+                $status = $order['vietnam_stock_date'] === null ? 'Kho TQ' : ($order['invoice_id'] === null ? 'Tồn kho' : ($order['shipping_confirmed_at'] !== null ? 'Đã giao' : 'Chờ giao'));
+
+                $sheet->fromArray([
+                    $order['id'],
+                    date('Y-m-d', strtotime($order['created_at'])),
+                    $order['vietnam_stock_date'] ? date('Y-m-d', strtotime($order['vietnam_stock_date'])) : '',
+                    null, // Mã vận chuyển
+                    $order['order_code'],
+                    $order['package_code'],
+                    $order['customer_code'],
+                    $order['sub_customer_code'] ?? '', // Mã phụ ngay sau mã khách hàng
+                    $order['product_type_name'],
+                    $order['quantity'],
+                    $order['total_weight'],
+                    $order['length'],
+                    $order['width'],
+                    $order['height'],
+                    $order['volume'],
+                    $order['price_per_kg'],
+                    $order['price_per_cubic_meter'],
+                    $order['domestic_fee'],
+                    $order['exchange_rate'],
+                    $gianoidia_trung,
+                    $order['official_quota_fee'],
+                    $order['vat_tax'],
+                    $order['import_tax'],
+                    $order['other_tax'],
+                    $gia_cuoi_cung,
+                    $gianoidia_trung + $gia_cuoi_cung + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'],
+                    $cach_tinh_gia,
+                    $status
+                ], null, "A$row");
+
+                // Ghi giá trị tracking_code bằng setValueExplicit để đảm bảo là text
+                if (!empty($order['tracking_code'])) {
+                    $sheet->getCell('D' . $row)
+                        ->setValueExplicit(
+                            $order['tracking_code'],
+                            \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+                        );
+                }
+
+                // Định dạng cột "Mã vận chuyển" (cột D) là Text
+                $sheet->getCell('D' . $row)->getStyle()->getNumberFormat()->setFormatCode('@');
+
+                $row++;
+            }
+
+            // Định dạng toàn bộ cột "Mã vận chuyển" (cột D) là Text
+            $lastRow = $sheet->getHighestRow();
+            $sheet->getStyle('D2:D' . $lastRow)->getNumberFormat()->setFormatCode('@');
+
+            // Định dạng cột "Khối" (cột O) để hiển thị 3 chữ số sau dấu phẩy
+            $sheet->getStyle('O2:O' . $lastRow)
+                ->getNumberFormat()
+                ->setFormatCode('0.000');
+
+            // Tự động điều chỉnh độ rộng cột
+            foreach (range('A', 'Z') as $columnID) {
+                $sheet->getColumnDimension($columnID)->setAutoSize(true);
+            }
+
+            // Tạo tên file dựa trên bộ lọc
+            $filename = 'DonHang_' . date('Y-m-d_H-i-s');
+            if ($filters['customer_code'] !== 'ALL') {
+                $filename .= '_' . $filters['customer_code'];
+            }
+            if ($filters['export_type'] === 'recent_1000') {
+                $filename .= '_1000gannhat';
+            } else {
+                $filename .= '_tatca';
+            }
+            $filename .= '.xlsx';
+
+            // Tạo file Excel và tải xuống
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+            $writer->save('php://output');
+            exit();
+        } catch (\Exception $e) {
+            log_message('error', 'Lỗi export Excel: ' . $e->getMessage());
+            session()->setFlashdata('error', 'Có lỗi xảy ra khi xuất Excel: ' . $e->getMessage());
+            return redirect()->to('/orders');
+        }
+    }
+
+    public function getOrderCount()
+    {
+        try {
+            // Lấy thông tin tìm kiếm từ GET
+            $filters = [
+                'tracking_code' => $this->request->getGet('tracking_code'),
+                'customer_code' => $this->request->getGet('customer_code') ?? 'ALL',
+                'from_date' => $this->request->getGet('from_date'),
+                'to_date' => $this->request->getGet('to_date'),
+                'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
+                'order_code' => $this->request->getGet('order_code'),
+                'sub_customer_id' => $this->request->getGet('sub_customer_id') ?? 'ALL'
+            ];
+
+            // Cấu hình query để đếm số lượng
+            $query = $this->orderModel
+                ->select('COUNT(*) as total_count')
+                ->join('customers', 'customers.id = orders.customer_id', 'left')
+                ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+                ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+                ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left');
+
+            // Thêm điều kiện tìm kiếm
+            if (!empty($filters['tracking_code'])) {
+                $query->like('orders.tracking_code', $filters['tracking_code']);
+            }
+
+            if (!empty($filters['order_code'])) {
+                $query->like('orders.order_code', $filters['order_code']);
+            }
+
+            if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
+                $query->where('customers.customer_code', $filters['customer_code']);
+
+                if ($filters['sub_customer_id'] !== 'ALL') {
+                    if ($filters['sub_customer_id'] === 'NONE') {
+                        $query->where('orders.sub_customer_id IS NULL');
+                    } else {
+                        $query->where('orders.sub_customer_id', $filters['sub_customer_id']);
+                    }
+                }
+            }
+
+            if (!empty($filters['from_date'])) {
+                $query->where('orders.created_at >=', $filters['from_date'] . ' 00:00:00');
+            }
+
+            if (!empty($filters['to_date'])) {
+                $query->where('orders.created_at <=', $filters['to_date'] . ' 23:59:59');
+            }
+
+            if (!empty($filters['shipping_status']) && $filters['shipping_status'] !== 'ALL') {
+                switch ($filters['shipping_status']) {
+                    case 'china_stock':
+                        $query->where('orders.vietnam_stock_date IS NULL');
+                        break;
+                    case 'in_stock':
+                        $query->where('orders.vietnam_stock_date IS NOT NULL')
+                            ->where('orders.invoice_id IS NULL');
+                        break;
+                    case 'pending_shipping':
+                        $query->where('orders.invoice_id IS NOT NULL')
+                            ->where('i.shipping_confirmed_at IS NULL');
+                        break;
+                    case 'shipped':
+                        $query->where('i.shipping_confirmed_at IS NOT NULL');
+                        break;
+                }
+            }
+
+            $result = $query->first();
+            $totalCount = $result['total_count'] ?? 0;
+
+            return $this->response->setJSON([
+                'success' => true,
+                'total_count' => $totalCount
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Lỗi đếm số lượng đơn hàng: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function zeroPrice()
+    {
+        $perPage = 20;
+        // Lấy thông tin tìm kiếm từ GET
+        $filters = [
+            'tracking_code' => $this->request->getGet('tracking_code'),
+            'customer_code' => $this->request->getGet('customer_code') ?? 'ALL',
+            'from_date' => $this->request->getGet('from_date'),
+            'to_date' => $this->request->getGet('to_date'),
+            'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
+            'order_code' => $this->request->getGet('order_code')
+        ];
+        $subCustomerId = $this->request->getGet('sub_customer_id') ?? 'ALL';
+
+        // Cấu hình query cho danh sách đơn hàng chưa có giá
+        $query = $this->orderModel
+            ->select('orders.*, customers.customer_code, customers.fullname as customer_name, product_types.name as product_type_name, sub_customers.sub_customer_code, i.shipping_confirmed_at, i.id AS invoice_id')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('product_types', 'product_types.id = orders.product_type_id', 'left')
+            ->join('invoices i', 'i.id = orders.invoice_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
+            ->where('orders.price_per_kg', 0)
+            ->where('orders.price_per_cubic_meter', 0);
+
+        if (!empty($filters['tracking_code'])) {
+            $query->like('orders.tracking_code', $filters['tracking_code']);
+        }
+        if (!empty($filters['order_code'])) {
+            $query->like('orders.order_code', $filters['order_code']);
+        }
+        if (!empty($filters['customer_code']) && $filters['customer_code'] !== 'ALL') {
+            $query->where('customers.customer_code', $filters['customer_code']);
+            if ($subCustomerId !== 'ALL') {
+                if ($subCustomerId === 'NONE') {
+                    $query->where('orders.sub_customer_id IS NULL');
+                } else {
+                    $query->where('orders.sub_customer_id', $subCustomerId);
+                }
+            }
+        }
+        if (!empty($filters['from_date'])) {
+            $query->where('orders.created_at >=', $filters['from_date'] . ' 00:00:00');
+        }
+        if (!empty($filters['to_date'])) {
+            $query->where('orders.created_at <=', $filters['to_date'] . ' 23:59:59');
+        }
+        if (!empty($filters['shipping_status']) && $filters['shipping_status'] !== 'ALL') {
+            switch ($filters['shipping_status']) {
+                case 'china_stock':
+                    $query->where('orders.vietnam_stock_date IS NULL');
+                    break;
+                case 'in_stock':
+                    $query->where('orders.vietnam_stock_date IS NOT NULL')
+                        ->where('orders.invoice_id IS NULL');
+                    break;
+                case 'pending_shipping':
+                    $query->where('orders.invoice_id IS NOT NULL')
+                        ->where('i.shipping_confirmed_at IS NULL');
+                    break;
+                case 'shipped':
+                    $query->where('i.shipping_confirmed_at IS NOT NULL');
+                    break;
+            }
+        }
+        $orders = $query->orderBy('orders.created_at', 'DESC')->paginate($perPage);
+        $pager = $this->orderModel->pager;
+
+        // Lấy danh sách khách hàng để hiển thị dropdown
+        $customerModel = new \App\Models\CustomerModel();
+        $customers = $customerModel->select('customer_code, fullname')->orderBy('customer_code', 'ASC')->findAll();
+        // Lấy danh sách mã lô để hiển thị dropdown
+        $orderCodes = $this->orderModel->distinct()
+            ->select('order_code')
+            ->where('order_code IS NOT NULL')
+            ->where('order_code !=', '')
+            ->orderBy('order_code', 'ASC')
+            ->findAll();
+        $order_codes = array_column($orderCodes, 'order_code');
+
+        $totalOrders = $this->orderModel
+            ->where('price_per_kg', 0)
+            ->where('price_per_cubic_meter', 0)
+            ->countAllResults();
+
+        $data = [
+            'title' => 'Đơn hàng chưa có giá',
+            'orders' => $orders,
+            'pager' => $pager,
+            'stats' => [
+                'total' => $totalOrders,
+            ],
+            'customers' => $customers,
+            'order_codes' => $order_codes,
+            'tracking_code' => $filters['tracking_code'],
+            'customer_code' => $filters['customer_code'],
+            'from_date' => $filters['from_date'],
+            'to_date' => $filters['to_date'],
+            'sub_customer_id' => $subCustomerId,
+            'shipping_status' => $filters['shipping_status'],
+            'order_code' => $filters['order_code'],
+        ];
+        return view('orders/zero_price', $data);
     }
 }

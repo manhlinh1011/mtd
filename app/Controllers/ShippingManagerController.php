@@ -353,4 +353,26 @@ class ShippingManagerController extends BaseController
             return false;
         }
     }
+
+    public function getShippingDetails($invoiceId)
+    {
+        // Kiểm tra xem có phiếu ship cho invoice này không
+        $shipping = $this->shippingManagerModel
+            ->select('shipping_managers.*, shipping_providers.name as provider_name')
+            ->join('shipping_providers', 'shipping_providers.id = shipping_managers.shipping_provider_id', 'left')
+            ->where('invoice_id', $invoiceId)
+            ->first();
+
+        if (!$shipping) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Không tìm thấy thông tin giao hàng'
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'data' => $shipping
+        ]);
+    }
 }

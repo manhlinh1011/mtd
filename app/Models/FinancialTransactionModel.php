@@ -17,6 +17,7 @@ class FinancialTransactionModel extends Model
         'created_by',
         'approved_by',
         'created_at',
-        'approved_at'
+        'approved_at',
+        'transaction_date'
     ];
 }

@@ -8,7 +8,7 @@ class FundModel extends Model
 {
     protected $table = 'funds';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['name', 'account_number', 'bank_name', 'account_holder'];
+    protected $allowedFields = ['name', 'account_number', 'bank_name', 'account_holder', 'payment_qr'];
 
     public function getFunds()
     {

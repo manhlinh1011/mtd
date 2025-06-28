@@ -91,6 +91,7 @@
                         <th>Số Order</th>
                         <th>Số tiền</th>
                         <th>Giao hàng</th>
+                        <th>Thao tác</th>
                         <th>Thanh Toán</th>
                         <th>Hành Động</th>
                     </tr>
@@ -118,10 +119,30 @@
                                     <?php else: ?>
                                         <span class="badge badge-success">Đã xuất</span>
                                     <?php endif; ?>
-                                    <?php if (!$invoice['has_shipping_request']): ?>
-                                        <a href="<?= base_url("shipping-manager/create/{$invoice['id']}") ?>" class="btn btn-primary btn-sm">Yêu cầu ship</a>
-                                    <?php endif; ?>
 
+
+                                </td>
+                                <td class="text-center">
+                                    <?php if (!$invoice['has_shipping_request']): ?>
+                                        <?php if ($invoice['customer_payment_type'] == 'prepaid' && $invoice['payment_status'] != 'paid'): ?>
+                                            <button type="button" class="btn btn-warning btn-sm" onclick="showPaymentWarning()">
+                                                <i class="fas fa-truck"></i> Yêu cầu ship
+                                            </button>
+                                        <?php else: ?>
+                                            <a href="<?= base_url('shipping-manager/create/' . $invoice['id']) ?>" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-truck"></i> Yêu cầu ship
+                                            </a>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <a href="#" class="view-shipping-details" data-invoice-id="<?= $invoice['id'] ?>" data-status="<?= $invoice['shipping_confirmed_at'] ? 'delivered' : 'pending' ?>">
+                                            <?php if ($invoice['shipping_confirmed_at']): ?>
+                                                <i class="mdi mdi-check-circle"></i>
+                                            <?php else: ?>
+                                                <i class="fas fa-truck"></i>
+                                            <?php endif; ?>
+                                            Chi tiết
+                                        </a>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge 
@@ -144,7 +165,7 @@
                                 <td class="text-center">
                                     <a href="<?= base_url("invoices/detail/{$invoice['id']}") ?>" class="btn btn-info btn-sm">Chi Tiết</a>
                                     <a href="<?= base_url("invoices/export-excel/{$invoice['id']}") ?>" class="btn btn-success btn-sm"><i class="mdi mdi-file-excel"></i> Excel</a>
-                                    <?php if (in_array(session('role'), ['Quản lý', 'admin']) && $invoice['payment_status'] !== 'paid'): ?>
+                                    <?php if (in_array(session('role'), ['Quản lý', 'admin']) && $invoice['payment_status'] !== 'paid' && $invoice['shipping_confirmed_at'] === null): ?>
                                         <button class="btn btn-danger btn-sm delete-invoice"
                                             data-invoice-id="<?= $invoice['id'] ?>"
                                             data-invoice-code="<?= $invoice['id'] ?>"
@@ -215,6 +236,110 @@
         </div>
     </div>
 </div>
+
+<!-- Modal cảnh báo thanh toán -->
+<div class="modal fade" id="paymentWarningModal" tabindex="-1" aria-labelledby="paymentWarningModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentWarningModalLabel">Cảnh báo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePaymentWarning()"></button>
+            </div>
+            <div class="modal-body">
+                <p>Khách hàng này phải thanh toán trước khi giao hàng. Vui lòng xác nhận thanh toán trước khi tạo yêu cầu giao hàng.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closePaymentWarning()">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chi tiết phiếu ship -->
+<div class="modal fade" id="shippingDetailsModal" tabindex="-1" role="dialog" aria-labelledby="shippingDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="shippingDetailsModalLabel">Chi tiết phiếu giao hàng</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Thông tin người nhận</h6>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Họ tên</th>
+                                <td id="receiver-name"></td>
+                            </tr>
+                            <tr>
+                                <th>Số điện thoại</th>
+                                <td id="receiver-phone"></td>
+                            </tr>
+                            <tr>
+                                <th>Địa chỉ</th>
+                                <td id="receiver-address"></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Thông tin vận chuyển</h6>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Đơn vị vận chuyển</th>
+                                <td id="provider-name"></td>
+                            </tr>
+                            <tr>
+                                <th>Mã tracking</th>
+                                <td id="tracking-number"></td>
+                            </tr>
+                            <tr>
+                                <th>Phí vận chuyển</th>
+                                <td id="shipping-fee"></td>
+                            </tr>
+                            <tr>
+                                <th>Trạng thái</th>
+                                <td id="shipping-status"></td>
+                            </tr>
+                            <tr>
+                                <th>Ghi chú</th>
+                                <td id="shipping-notes"></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .view-shipping-details {
+        text-decoration: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .view-shipping-details[data-status="delivered"] {
+        background-color: #28a745;
+    }
+
+    .view-shipping-details[data-status="pending"] {
+        background-color: #fd7e14;
+    }
+
+    .view-shipping-details:hover {
+        color: #fff;
+        text-decoration: none;
+        opacity: 0.9;
+    }
+</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -306,6 +431,60 @@
                         console.error('Lỗi:', error);
                         alert('Có lỗi xảy ra khi xóa phiếu xuất');
                     });
+            });
+        });
+    });
+
+    let paymentWarningModal;
+
+    function showPaymentWarning() {
+        paymentWarningModal = new bootstrap.Modal(document.getElementById('paymentWarningModal'));
+        paymentWarningModal.show();
+    }
+
+    function closePaymentWarning() {
+        if (paymentWarningModal) {
+            paymentWarningModal.hide();
+        }
+    }
+
+    $(document).ready(function() {
+        $('.view-shipping-details').click(function(e) {
+            e.preventDefault();
+            var invoiceId = $(this).data('invoice-id');
+
+            // Gọi API lấy thông tin chi tiết
+            $.ajax({
+                url: '<?= base_url('shipping-manager/get-shipping-details/') ?>' + invoiceId,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        var data = response.data;
+
+                        // Cập nhật thông tin trong modal
+                        $('#receiver-name').text(data.receiver_name);
+                        $('#receiver-phone').text(data.receiver_phone);
+                        $('#receiver-address').text(data.receiver_address);
+                        $('#provider-name').text(data.provider_name || 'Chưa chọn');
+                        $('#tracking-number').text(data.tracking_number || 'Chưa có');
+                        $('#shipping-fee').text(new Intl.NumberFormat('vi-VN').format(data.shipping_fee) + 'đ');
+
+                        // Cập nhật trạng thái và màu sắc
+                        var statusText = data.status === 'delivered' ? 'Đã giao' : 'Đang giao';
+                        var statusClass = data.status === 'delivered' ? 'text-success' : 'text-warning';
+                        $('#shipping-status').text(statusText).removeClass('text-success text-warning').addClass(statusClass);
+
+                        $('#shipping-notes').text(data.notes || 'Không có');
+
+                        // Hiển thị modal
+                        $('#shippingDetailsModal').modal('show');
+                    } else {
+                        alert('Không thể lấy thông tin chi tiết giao hàng');
+                    }
+                },
+                error: function() {
+                    alert('Có lỗi xảy ra khi lấy thông tin chi tiết giao hàng');
+                }
             });
         });
     });

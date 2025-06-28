@@ -70,6 +70,18 @@ $role = $session->get('role');
 
             <li>
                 <a href="javascript: void(0);">
+                    <i class="mdi mdi-magnify"></i>
+                    <span> Kiểm tra đơn hàng</span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li><a href="<?= base_url('/order-inspections') ?>">Danh sách yêu cầu</a></li>
+                    <li><a href="<?= base_url('/order-inspections/create') ?>">Thêm yêu cầu mới</a></li>
+                </ul>
+            </li>
+
+            <li>
+                <a href="javascript: void(0);">
                     <i class="mdi mdi-file-export-outline"></i>
                     <span> Phiếu xuất kho</span>
                     <span class="menu-arrow"></span>

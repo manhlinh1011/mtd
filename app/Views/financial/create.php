@@ -38,6 +38,10 @@
                     <label>Mô tả</label>
                     <textarea name="description" class="form-control" required></textarea>
                 </div>
+                <div class="form-group">
+                    <label>Ngày giao dịch</label>
+                    <input type="date" name="transaction_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                </div>
                 <button type="submit" class="btn btn-primary">Lưu</button>
             </form>
         </div>

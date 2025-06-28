@@ -63,6 +63,9 @@
                 <div class="card mt-4">
                     <div class="card-header">
                         <h5 class="mb-0">Mã vận đơn: <strong><?= htmlspecialchars($trackingCode) ?></strong></h5>
+                        <?php if (isset($customer_code) && $customer_code == 'KO-TEN'): ?>
+                            <p class="mb-1">Mã khách hàng: <strong><?= htmlspecialchars($customer_code) ?></strong> - Liên hệ CSKH để nhận đơn hàng</p>
+                        <?php endif; ?>
                         <p class="mt-2">
                             Cân năng: <?= $weight ?> kg,<br>
                             Kích thước: <?= $volume ?> m3,<br>

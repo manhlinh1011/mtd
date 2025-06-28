@@ -59,12 +59,32 @@
                                 <input type="date" id="to_date" name="to_date" class="form-control"
                                     value="<?= esc($to_date ?? '') ?>" placeholder="Đến ngày">
                             </div>
+
+                            <div class="col-md-2">
+                                <select name="order_code" class="form-control">
+                                    <option value="">Mã lô</option>
+                                    <?php foreach ($order_codes as $code): ?>
+                                        <option value="<?= $code ?>" <?= $order_code === $code ? 'selected' : '' ?>>
+                                            <?= $code ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="shipping_status" class="form-control">
+                                    <option value="ALL" <?= $shipping_status === 'ALL' || empty($shipping_status) ? 'selected' : '' ?>>TẤT CẢ TRẠNG THÁI</option>
+                                    <option value="china_stock" <?= $shipping_status === 'china_stock' ? 'selected' : '' ?>>Kho TQ</option>
+                                    <option value="in_stock" <?= $shipping_status === 'in_stock' ? 'selected' : '' ?>>Tồn kho</option>
+                                    <option value="pending_shipping" <?= $shipping_status === 'pending_shipping' ? 'selected' : '' ?>>Chờ giao</option>
+                                    <option value="shipped" <?= $shipping_status === 'shipped' ? 'selected' : '' ?>>Đã giao</option>
+                                </select>
+                            </div>
                             <div class="col-md-2">
                                 <input type="text" id="tracking_code_input" name="tracking_code" class="form-control"
                                     placeholder="Nhập mã vận chuyển" value="<?= esc($tracking_code ?? '') ?>">
                             </div>
                             <div class="col-md-2">
-                                <button type="submit" class="btn btn-primary">Tìm Kiếm</button>
+                                <button type="submit" class="btn btn-primary mt-2">Tìm Kiếm</button>
                             </div>
                         </div>
                     </form>
@@ -128,6 +148,9 @@
                                         <button type="submit" class="btn btn-success mb-3">
                                             <i class="mdi mdi-update mr-1"></i> Cập nhật giá
                                         </button>
+                                        <a href="#" class="btn btn-warning mb-3" data-toggle="modal" data-target="#exportExcelModal">
+                                            <i class="mdi mdi-file-export mr-1"></i> Xuất Excel Đơn hàng
+                                        </a>
                                     </div>
                                     <div class="col text-right">
                                         <a href="<?= base_url('/orders/vncheck') ?>" class="btn btn-danger mb-3">
@@ -138,6 +161,9 @@
                                         </a>
                                         <a href="<?= base_url('/orders/export-vn-today') ?>" class="btn btn-outline-info mb-3">
                                             <i class="mdi mdi-file-export"></i> Export VN Today
+                                        </a>
+                                        <a href="<?= base_url('/orders/zero-price') ?>" class="btn btn-outline-warning mb-3">
+                                            <i class="mdi mdi-alert"></i> Đơn chưa có giá
                                         </a>
                                     </div>
                                 </div>
@@ -583,4 +609,143 @@
         }
     });
 </script>
+
+<!-- Modal Export Excel -->
+<div class="modal fade" id="exportExcelModal" tabindex="-1" role="dialog" aria-labelledby="exportExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportExcelModalLabel">
+                    <i class="mdi mdi-file-export mr-2"></i>Xuất Excel Đơn hàng
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status" id="loadingSpinner" style="display: none;">
+                        <span class="sr-only">Đang tải...</span>
+                    </div>
+                </div>
+
+                <div id="orderCountInfo" class="alert alert-info" style="display: none;">
+                    <i class="mdi mdi-information mr-2"></i>
+                    <span id="orderCountText"></span>
+                </div>
+
+                <div class="form-group">
+                    <label class="font-weight-bold">Chọn cách xuất:</label>
+                    <div class="mt-3">
+                        <div class="custom-control custom-radio mb-2">
+                            <input type="radio" id="exportRecent1000" name="exportType" value="recent_1000" class="custom-control-input" checked>
+                            <label class="custom-control-label" for="exportRecent1000">
+                                <strong>Xuất 1000 đơn hàng gần nhất</strong>
+                                <br><small class="text-muted">Phù hợp cho hầu hết trường hợp, tránh quá tải hệ thống</small>
+                            </label>
+                        </div>
+
+                        <div class="custom-control custom-radio mb-2">
+                            <input type="radio" id="exportAll" name="exportType" value="all" class="custom-control-input">
+                            <label class="custom-control-label" for="exportAll">
+                                <strong>Xuất tất cả đơn hàng</strong>
+                                <br><small class="text-muted">Có thể mất nhiều thời gian nếu có nhiều dữ liệu</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <i class="mdi mdi-alert mr-2"></i>
+                    <strong>Lưu ý:</strong> Việc xuất quá nhiều dữ liệu có thể gây chậm hoặc lỗi hệ thống.
+                    Khuyến nghị sử dụng bộ lọc để giảm số lượng dữ liệu trước khi xuất.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="mdi mdi-close mr-1"></i>Hủy
+                </button>
+                <button type="button" class="btn btn-warning" id="exportExcelBtn">
+                    <i class="mdi mdi-file-export mr-1"></i>Xuất Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Khi modal mở, kiểm tra số lượng đơn hàng
+        $('#exportExcelModal').on('show.bs.modal', function() {
+            checkOrderCount();
+        });
+
+        // Hàm kiểm tra số lượng đơn hàng
+        function checkOrderCount() {
+            const loadingSpinner = $('#loadingSpinner');
+            const orderCountInfo = $('#orderCountInfo');
+            const orderCountText = $('#orderCountText');
+
+            loadingSpinner.show();
+            orderCountInfo.hide();
+
+            // Lấy các tham số tìm kiếm hiện tại
+            const currentUrl = new URL(window.location);
+            const params = new URLSearchParams(currentUrl.search);
+
+            fetch('<?= base_url('orders/get-order-count') ?>?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    loadingSpinner.hide();
+
+                    if (data.success) {
+                        const count = data.total_count;
+                        orderCountText.text(`Tìm thấy ${count.toLocaleString('vi-VN')} đơn hàng phù hợp với bộ lọc hiện tại.`);
+                        orderCountInfo.show();
+
+                        // Cập nhật trạng thái radio button dựa trên số lượng
+                        if (count > 1000) {
+                            $('#exportRecent1000').prop('checked', true);
+                            $('#exportAll').prop('disabled', false);
+                        } else {
+                            $('#exportAll').prop('checked', true);
+                            $('#exportRecent1000').prop('disabled', true);
+                        }
+                    } else {
+                        orderCountText.text('Không thể kiểm tra số lượng đơn hàng.');
+                        orderCountInfo.show();
+                    }
+                })
+                .catch(error => {
+                    loadingSpinner.hide();
+                    orderCountText.text('Lỗi khi kiểm tra số lượng đơn hàng.');
+                    orderCountInfo.show();
+                    console.error('Error:', error);
+                });
+        }
+
+        // Xử lý nút xuất Excel
+        $('#exportExcelBtn').click(function() {
+            const exportType = $('input[name="exportType"]:checked').val();
+            const currentUrl = new URL(window.location);
+            const params = new URLSearchParams(currentUrl.search);
+
+            // Thêm tham số export_type
+            params.set('export_type', exportType);
+
+            // Tạo URL xuất Excel
+            const exportUrl = '<?= base_url('orders/export-excel-by-filter') ?>?' + params.toString();
+
+            // Đóng modal
+            $('#exportExcelModal').modal('hide');
+
+            // Hiển thị thông báo
+            showToast('Đang xuất Excel, vui lòng đợi...', 'info');
+
+            // Chuyển hướng để tải file
+            window.location.href = exportUrl;
+        });
+    });
+</script>
+
 <?= $this->endSection() ?>

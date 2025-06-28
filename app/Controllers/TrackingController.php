@@ -25,8 +25,11 @@ class TrackingController extends Controller
         $invoiceModel = new InvoiceModel();
 
         // Lấy thông tin đơn hàng theo mã tracking_code
-        $order = $orderModel->like('tracking_code', $trackingCode, 'after')->first();
-
+        $order = $orderModel
+            ->select('orders.*, customers.customer_code')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->like('orders.tracking_code', $trackingCode, 'after')
+            ->first();
 
         if (!$order) {
             return view('tracking', ['error' => 'Không tìm thấy đơn hàng với mã này']);
@@ -72,13 +75,15 @@ class TrackingController extends Controller
         $weight = $order['total_weight'];
         $volume = $order['volume'];
         $domestic_fee = $order['domestic_fee'];
+        $customer_code = $order['customer_code'] ?? null;
 
         return view('tracking', [
             'trackingCode' => $trackingCode,
             'statusHistory' => $statusHistory,
             'weight' => $weight,
             'volume' => $volume,
-            'domestic_fee' => $domestic_fee
+            'domestic_fee' => $domestic_fee,
+            'customer_code' => $customer_code
         ]);
     }
 }

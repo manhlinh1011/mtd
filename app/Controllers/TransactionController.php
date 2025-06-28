@@ -22,6 +22,7 @@ class TransactionController extends BaseController
             $startDate = $this->request->getVar('start_date');
             $endDate = $this->request->getVar('end_date');
             $transactionType = $this->request->getVar('transaction_type');
+            $fundId = $this->request->getVar('fund_id');
 
             // Xây dựng query cơ bản
             $builder = $this->db->table('customer_transactions ct')
@@ -30,11 +31,13 @@ class TransactionController extends BaseController
                     c.customer_code,
                     c.fullname as customer_name,
                     u.fullname as created_by_name,
-                    i.id as invoice_id
+                    i.id as invoice_id,
+                    f.name as fund_name
                 ')
                 ->join('customers c', 'c.id = ct.customer_id', 'left')
                 ->join('users u', 'u.id = ct.created_by', 'left')
-                ->join('invoices i', 'i.id = ct.invoice_id', 'left');
+                ->join('invoices i', 'i.id = ct.invoice_id', 'left')
+                ->join('funds f', 'f.id = ct.fund_id', 'left');
 
             // Thêm điều kiện tìm kiếm
             if ($customerCode) {
@@ -49,6 +52,19 @@ class TransactionController extends BaseController
             if ($transactionType) {
                 $builder->where('ct.transaction_type', $transactionType);
             }
+            if ($fundId) {
+                $builder->where('ct.fund_id', $fundId);
+            }
+
+            // Clone builder để tính toán tổng theo bộ lọc
+            $filteredQueryBuilder = clone $builder;
+            $filteredDeposit = $filteredQueryBuilder->where('ct.transaction_type', 'deposit')->selectSum('ct.amount', 'total')->get()->getRow()->total ?? 0;
+
+            // Clone lại builder gốc để tính tổng thanh toán
+            $filteredQueryBuilder = clone $builder;
+            $filteredPayment = $filteredQueryBuilder->where('ct.transaction_type', 'payment')->selectSum('ct.amount', 'total')->get()->getRow()->total ?? 0;
+
+            $filteredBalance = $filteredDeposit + $filteredPayment; // Thanh toán được lưu dưới dạng số âm
 
             // Clone builder để đếm tổng số bản ghi
             $total = $builder->countAllResults(false);
@@ -60,20 +76,8 @@ class TransactionController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // Tính tổng tiền nạp và thanh toán
-            $totalDeposit = $this->db->table('customer_transactions')
-                ->selectSum('amount')
-                ->where('transaction_type', 'deposit')
-                ->get()
-                ->getRow()
-                ->amount ?? 0;
-
-            $totalPayment = $this->db->table('customer_transactions')
-                ->selectSum('amount')
-                ->where('transaction_type', 'payment')
-                ->get()
-                ->getRow()
-                ->amount ?? 0;
+            $fundModel = new \App\Models\FundModel();
+            $funds = $fundModel->findAll();
 
             // Tạo đối tượng phân trang
             $pager = service('pager');
@@ -87,12 +91,17 @@ class TransactionController extends BaseController
                 'total' => $total,
                 'perPage' => $this->perPage,
                 'page' => $page,
-                'totalDeposit' => $totalDeposit,
-                'totalPayment' => $totalPayment,
+                'totalDeposit' => $filteredDeposit,
+                'totalPayment' => $filteredPayment,
                 'customerCode' => $customerCode,
                 'startDate' => $startDate,
                 'endDate' => $endDate,
-                'transactionType' => $transactionType
+                'transactionType' => $transactionType,
+                'funds' => $funds,
+                'fundId' => $fundId,
+                'filteredDeposit' => $filteredDeposit,
+                'filteredPayment' => $filteredPayment,
+                'filteredBalance' => $filteredBalance
             ];
 
             return view('transactions/index', $data);

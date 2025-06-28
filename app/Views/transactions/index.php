@@ -50,6 +50,19 @@
                                 <option value="payment" <?= ($transactionType == 'payment') ? 'selected' : '' ?>>Thanh toán</option>
                             </select>
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Quỹ</label>
+                            <select class="form-control" name="fund_id">
+                                <option value="">Tất cả</option>
+                                <?php if (isset($funds)): ?>
+                                    <?php foreach ($funds as $fund): ?>
+                                        <option value="<?= $fund['id'] ?>" <?= (isset($fundId) && $fundId == $fund['id']) ? 'selected' : '' ?>>
+                                            <?= esc($fund['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-search"></i> Tìm kiếm
@@ -60,6 +73,29 @@
             </div>
         </div>
     </div>
+
+    <?php if (isset($filteredDeposit)): ?>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <div class="card card-body text-center" style="background-color:rgb(231, 252, 236);">
+                    <h5 class="text-success mb-2">Tổng Nạp (theo bộ lọc)</h5>
+                    <h4 class="fw-bold mb-0"><?= number_format($filteredDeposit, 0, ',', '.') ?> đ</h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-body text-center" style="background-color:rgb(255, 225, 225);">
+                    <h5 class="text-danger mb-2">Tổng Thanh Toán (theo bộ lọc)</h5>
+                    <h4 class="fw-bold mb-0"><?= number_format(abs($filteredPayment), 0, ',', '.') ?> đ</h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-body text-center" style="background-color:rgb(210, 231, 253);">
+                    <h5 class="text-primary mb-2">Số Dư (theo bộ lọc)</h5>
+                    <h4 class="fw-bold mb-0"><?= number_format($filteredBalance, 0, ',', '.') ?> đ</h4>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <?php if (isset($error)): ?>
         <div class="alert alert-danger"><?= $error ?></div>
@@ -80,6 +116,7 @@
                                     <th class="text-center">Tên khách hàng</th>
                                     <th class="text-center">Loại GD</th>
                                     <th class="text-center">Số tiền</th>
+                                    <th class="text-center">Tên quỹ</th>
                                     <th class="text-center">Phiếu xuất</th>
                                     <th class="text-center">Người tạo</th>
                                     <th class="text-center">Ghi chú</th>
@@ -111,6 +148,7 @@
                                             <td class="text-center">
                                                 <?= number_format($transaction['amount'], 0, ',', '.') ?> đ
                                             </td>
+                                            <td class="text-center"><?= esc($transaction['fund_name'] ?? '-') ?></td>
                                             <td class="text-center">
                                                 <?php if ($transaction['invoice_id']): ?>
                                                     <a href="<?= base_url('invoices/detail/' . $transaction['invoice_id']) ?>" class="btn btn-sm btn-outline-primary">
@@ -124,7 +162,7 @@
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="8" class="text-center">Không có dữ liệu</td>
+                                        <td colspan="10" class="text-center">Không có dữ liệu</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>

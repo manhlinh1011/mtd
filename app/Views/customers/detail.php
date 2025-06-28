@@ -226,13 +226,17 @@
                 <div class="modal-header">
                     <h5 class="modal-title" id="depositModalLabel">Nạp tiền cho khách hàng</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
+                        <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group mb-3">
-                        <label for="fund_id">Chọn quỹ nạp <span class="text-danger">*</span></label>
-                        <select name="fund_id" id="fund_id" class="form-control" required>
+                    <div class="form-group">
+                        <label>Số tiền nạp</label>
+                        <input type="number" name="amount" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Chọn quỹ</label>
+                        <select name="fund_id" class="form-control" required>
                             <option value="">-- Chọn quỹ --</option>
                             <?php foreach ($funds as $fund): ?>
                                 <option value="<?= $fund['id'] ?>">
@@ -244,13 +248,13 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-group mb-3">
-                        <label for="amount">Số tiền <span class="text-danger">*</span></label>
-                        <input type="number" name="amount" id="amount" class="form-control" min="1" required>
+                    <div class="form-group">
+                        <label>Ngày giao dịch</label>
+                        <input type="date" name="transaction_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
                     </div>
                     <div class="form-group">
-                        <label for="notes">Ghi chú</label>
-                        <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
+                        <label>Ghi chú</label>
+                        <textarea name="notes" class="form-control"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

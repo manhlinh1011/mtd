@@ -50,6 +50,10 @@
                                 <?= number_format($balance, 0, ',', '.') ?> VNĐ
                             </td>
                         </tr>
+                        <tr>
+                            <th>QR thanh toán:</th>
+                            <td><?= $fund['payment_qr'] ?? '-' ?></td>
+                        </tr>
                     </table>
                 </div>
             </div>
