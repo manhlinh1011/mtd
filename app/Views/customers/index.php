@@ -38,13 +38,11 @@
                                             <th>Giá khối</th>
                                             <th>Số điện thoại</th>
                                             <th>Địa chỉ</th>
-                                            <th>Link Zalo</th>
-                                            <th>Email</th>
                                             <th>Số đơn hàng</th>
                                             <th>Phiếu xuất</th>
                                             <th>Số ngày giới hạn thanh toán</th>
                                             <?php if (in_array(session('role'), ['Quản lý'])): ?>
-                                                <th>Hành động</th>
+                                                <th style="width: 100px;">Hành động</th>
                                             <?php endif; ?>
                                         </tr>
                                     </thead>
@@ -74,14 +72,6 @@
                                                 </td>
                                                 <td class="text-center"><?= $customer['phone'] ?></td>
                                                 <td><?= $customer['address'] ?></td>
-                                                <td class="text-center">
-                                                    <?php if (!empty($customer['zalo_link'])): ?>
-                                                        <a href="<?= $customer['zalo_link'] ?>" target="_blank">Zalo</a>
-                                                    <?php else: ?>
-                                                        Không có
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td><?= $customer['email'] ?></td>
                                                 <td class="text-center"><a href="<?= base_url() ?>orders?customer_code=<?= $customer['customer_code'] ?>"><?= $customer['order_count'] ?></a></td>
                                                 <td class="text-center"><?= $customer['paid_invoice_count'] ?>/<?= $customer['invoice_count'] ?></td>
                                                 <td class="text-center"><?= $customer['payment_limit_days'] ?></td>

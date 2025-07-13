@@ -46,7 +46,7 @@
                             <td><?= esc($subCustomer['email']) ?: 'Không có' ?></td>
                         </tr>
                     </table>
-                    <a href="/customers/sub-edit/<?= $subCustomer['id'] ?>" class="btn btn-warning">Sửa thông tin</a>
+                    <a href="/customers/edit-sub/<?= $subCustomer['id'] ?>" class="btn btn-warning">Sửa thông tin</a>
                     <a href="/customers/detail/<?= $customer['id'] ?>" class="btn btn-info">Xem khách hàng chính</a>
                 </div>
             </div>

@@ -39,16 +39,16 @@
                         </form>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped">
+                    <div>
+                        <table class="table table-bordered">
                             <thead>
                                 <tr>
                                     <th class="text-center">ID</th>
-                                    <th class="text-center">Ngày tạo</th>
+                                    <th class="text-center" style="width: 150px;">Ngày tạo</th>
                                     <th class="text-center">Mã phiếu xuất</th>
                                     <th class="text-center">Khách hàng</th>
                                     <th class="text-center">Người nhận</th>
-                                    <th class="text-center">Đơn vị vận chuyển</th>
+                                    <th class="text-center" style="width: 150px;">Đơn vị vận chuyển</th>
                                     <th class="text-center">Mã vận đơn</th>
                                     <th class="text-center">Phí vận chuyển</th>
                                     <th class="text-center">Trạng thái</th>
@@ -84,7 +84,7 @@
                                                     <i style="font-size: 12px; color:rgb(248, 106, 11);">Ghi chú: <?= esc($shipping['notes']) ?></i>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="text-center"><?= esc($shipping['shipping_provider']['name'] ?? '') ?></td>
+                                            <td class="text-center" style="width: 150px;"><?= esc($shipping['shipping_provider']['name'] ?? '') ?></td>
                                             <td class="text-center"><?= esc($shipping['tracking_number']) ?></td>
                                             <td class="text-center"><?= number_format($shipping['shipping_fee'], 0, ',', '.') ?></td>
                                             <td class="text-center">

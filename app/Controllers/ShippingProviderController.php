@@ -18,6 +18,14 @@ class ShippingProviderController extends BaseController
         $data['title'] = 'Quản lý đơn vị vận chuyển';
         $data['providers'] = $this->shippingProviderModel->getAllProviders();
 
+        // Lấy số phiếu giao hàng cho từng provider
+        $db = \Config\Database::connect();
+        foreach ($data['providers'] as &$provider) {
+            $provider['shipping_count'] = $db->table('shipping_managers')
+                ->where('shipping_provider_id', $provider['id'])
+                ->countAllResults();
+        }
+
         return view('shipping_provider/index', $data);
     }
 

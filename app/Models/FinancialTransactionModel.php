@@ -11,6 +11,7 @@ class FinancialTransactionModel extends Model
     protected $allowedFields = [
         'fund_id',
         'type',
+        'transaction_type_id',
         'amount',
         'description',
         'status',

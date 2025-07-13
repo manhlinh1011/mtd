@@ -46,6 +46,7 @@
                         </tr>
                     </table>
                     <button class="btn btn-primary" data-toggle="modal" data-target="#depositModal">Nạp tiền</button>
+                    <button class="btn btn-warning" data-toggle="modal" data-target="#withdrawModal">Rút tiền</button>
                     <a href="/customers/edit/<?= $customer['id'] ?>" class="btn btn-warning">Sửa thông tin</a>
                 </div>
             </div>
@@ -124,7 +125,7 @@
                                         <td class="text-center"><?= $subCustomer['address'] ?></td>
                                         <td class="text-center"><a href="<?= base_url() ?>orders?sub_customer_id=<?= $subCustomer['id'] ?>"><?= $subCustomer['order_count'] ?? 0 ?></a></td>
                                         <td class="text-center"><?= ($subCustomer['paid_invoice_count'] ?? 0) ?>/<?= ($subCustomer['invoice_count'] ?? 0) ?></td>
-                                        <td class="text-center"><a href="/customers/sub-edit/<?= $subCustomer['id'] ?>" class="btn btn-primary btn-sm">Xem chi tiết</a></td>
+                                        <td class="text-center"><a href="/customers/edit-sub/<?= $subCustomer['id'] ?>" class="btn btn-primary btn-sm">Xem chi tiết</a></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -186,7 +187,11 @@
             <div class="card mb-4">
                 <div class="card-header">Lịch sử giao dịch</div>
                 <div class="card-body">
-                    <p>Tổng số tiền nạp: <strong class="text-success"><?= number_format($totalDeposit, 0, ',', '.') ?> VNĐ</strong> Tổng số tiền thanh toán: <strong class="text-danger"><?= number_format($totalPayment, 0, ',', '.') ?> VNĐ</strong></p>
+                    <p>
+                        Tổng số tiền nạp: <strong class="text-success"><?= number_format($totalDeposit, 0, ',', '.') ?> VNĐ</strong>
+                        Tổng số tiền thanh toán: <strong class="text-danger"><?= number_format($totalPayment, 0, ',', '.') ?> VNĐ</strong>
+                        Tổng số tiền rút: <strong class="text-warning"><?= number_format($totalWithdraw ?? 0, 0, ',', '.') ?> VNĐ</strong>
+                    </p>
                     <table class="table table-striped table-bordered">
                         <thead>
                             <tr>
@@ -202,7 +207,15 @@
                             <?php foreach ($transactions as $transaction): ?>
                                 <tr>
                                     <td class="text-center"><?= $transaction['id'] ?></td>
-                                    <td class="text-center"><?= $transaction['transaction_type'] == 'deposit' ? 'Nạp tiền' : 'Thanh toán' ?></td>
+                                    <td class="text-center">
+                                        <?php if ($transaction['transaction_type'] == 'deposit'): ?>
+                                            <span class="badge bg-success">Nạp tiền</span>
+                                        <?php elseif ($transaction['transaction_type'] == 'payment'): ?>
+                                            <span class="badge bg-info">Thanh toán</span>
+                                        <?php elseif ($transaction['transaction_type'] == 'withdraw'): ?>
+                                            <span class="badge bg-warning">Rút tiền</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-center"><?= number_format($transaction['amount'], 0, ',', '.') ?> VNĐ</td>
                                     <td class="text-center"><?= date('d/m/Y H:i', strtotime($transaction['created_at'])) ?></td>
                                     <td class="text-center"><?= esc($transaction['created_by_name'] ?? 'Không rõ') ?></td>
@@ -265,5 +278,87 @@
         </div>
     </div>
 </div>
+
+<!-- Modal rút tiền -->
+<div class="modal fade" id="withdrawModal" tabindex="-1" role="dialog" aria-labelledby="withdrawModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="withdrawForm">
+                <?= csrf_field() ?>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="withdrawModalLabel">Rút tiền cho khách hàng</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Số tiền rút</label>
+                        <input type="number" name="amount" class="form-control" required>
+                        <small class="form-text text-muted">Số dư hiện tại: <strong><?= number_format($customer['balance'], 0, ',', '.') ?> VNĐ</strong></small>
+                    </div>
+                    <div class="form-group">
+                        <label>Chọn quỹ</label>
+                        <select name="fund_id" class="form-control" required>
+                            <option value="">-- Chọn quỹ --</option>
+                            <?php foreach ($funds as $fund): ?>
+                                <option value="<?= $fund['id'] ?>">
+                                    <?= esc($fund['name']) ?>
+                                    <?php if ($fund['account_number']): ?>
+                                        (<?= esc($fund['bank_name']) ?> - <?= esc($fund['account_number']) ?>)
+                                    <?php endif; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ngày giao dịch</label>
+                        <input type="date" name="transaction_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Ghi chú</label>
+                        <textarea name="notes" class="form-control"></textarea>
+                    </div>
+                    <input type="hidden" name="customer_id" value="<?= $customer['id'] ?>">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-warning">Rút tiền</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<?= $this->section('scripts') ?>
+<script>
+    $(document).ready(function() {
+        $('#withdrawForm').on('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            $.ajax({
+                url: '/transactions/withdraw',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.message);
+                        location.reload();
+                    } else {
+                        alert('Lỗi: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('Có lỗi xảy ra khi rút tiền!');
+                }
+            });
+        });
+    });
+</script>
+<?= $this->endSection() ?>
 
 <?= $this->endSection() ?>

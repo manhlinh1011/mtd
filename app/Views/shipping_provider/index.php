@@ -45,6 +45,7 @@
                                 <tr>
                                     <th class="text-center">ID</th>
                                     <th class="text-center">Tên đơn vị</th>
+                                    <th class="text-center">Số phiếu giao hàng</th>
                                     <th class="text-center">Mô tả</th>
                                     <th class="text-center">Ngày tạo</th>
                                     <th class="text-center">Thao tác</th>
@@ -53,13 +54,14 @@
                             <tbody>
                                 <?php if (empty($providers)) : ?>
                                     <tr>
-                                        <td colspan="5" class="text-center">Không có dữ liệu</td>
+                                        <td colspan="6" class="text-center">Không có dữ liệu</td>
                                     </tr>
                                 <?php else : ?>
                                     <?php foreach ($providers as $provider) : ?>
                                         <tr>
                                             <td class="text-center"><?= $provider['id'] ?></td>
                                             <td class="text-center"><?= esc($provider['name']) ?></td>
+                                            <td class="text-center"><?= $provider['shipping_count'] ?? 0 ?></td>
                                             <td class="text-center"><?= esc($provider['description']) ?></td>
                                             <td class="text-center"><?= date('d/m/Y H:i', strtotime($provider['created_at'])) ?></td>
                                             <td class="text-center">

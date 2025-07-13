@@ -281,11 +281,12 @@ class CustomerController extends BaseController
             if (!cache($orderCacheKey)) cache()->save($orderCacheKey, $orderStats, 3600);
             if (!cache($invoiceCacheKey)) cache()->save($invoiceCacheKey, $invoiceStats, 3600);
 
-            // Lấy tổng tiền nạp và thanh toán trong một query
+            // Lấy tổng tiền nạp, thanh toán và rút tiền trong một query
             $transactionSums = $this->db->table('customer_transactions')
                 ->select('
                     SUM(CASE WHEN transaction_type = "deposit" THEN amount ELSE 0 END) as total_deposit,
-                    SUM(CASE WHEN transaction_type = "payment" THEN amount ELSE 0 END) as total_payment
+                    SUM(CASE WHEN transaction_type = "payment" THEN amount ELSE 0 END) as total_payment,
+                    SUM(CASE WHEN transaction_type = "withdraw" THEN amount ELSE 0 END) as total_withdraw
                 ')
                 ->where('customer_id', $id)
                 ->get()
@@ -293,6 +294,7 @@ class CustomerController extends BaseController
 
             $totalDeposit = $transactionSums->total_deposit ?? 0;
             $totalPayment = $transactionSums->total_payment ?? 0;
+            $totalWithdraw = $transactionSums->total_withdraw ?? 0;
 
             // Lấy danh sách giao dịch
             $transactions = $this->db->table('customer_transactions ct')
@@ -432,6 +434,7 @@ class CustomerController extends BaseController
                 'recentInvoices' => $recentInvoices,
                 'totalDeposit' => $totalDeposit,
                 'totalPayment' => $totalPayment,
+                'totalWithdraw' => $totalWithdraw,
                 'orderStats' => $orderStats,
                 'invoiceStats' => $invoiceStats,
                 'subCustomers' => $subCustomers,

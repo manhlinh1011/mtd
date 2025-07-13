@@ -125,6 +125,7 @@ $routes->post('/invoices/addPayment/(:num)', 'InvoiceController::addPayment/$1')
 $routes->post('/invoices/updateShippingFee/(:num)', 'InvoiceController::updateShippingFee/$1');
 $routes->post('/invoices/updateOtherFee/(:num)', 'InvoiceController::updateOtherFee/$1');
 $routes->post('/invoices/updateBulkPrices/(:num)', 'InvoiceController::updateBulkPrices/$1');
+$routes->post('/invoices/deposit-ajax', 'InvoiceController::depositAjax');
 
 $routes->get('/accounting-statistics', 'AccountingStatisticsController::index');
 
@@ -151,6 +152,9 @@ $routes->get('packages', 'PackageController::index');
 $routes->get('packages/detail/(:segment)/(:segment)', 'PackageController::detail/$1/$2');
 
 $routes->get('transactions', 'TransactionController::index');
+$routes->post('transactions/delete/(:num)', 'TransactionController::delete/$1');
+$routes->post('transactions/withdraw', 'TransactionController::withdraw');
+
 $routes->get('customers/search', 'CustomerController::search');
 $routes->get('orders/china-stock', 'OrderController::chinaStock');
 $routes->get('orders/vietnam-stock', 'OrderController::vietnamStock');
@@ -169,10 +173,12 @@ $routes->group('financial', function ($routes) {
     $routes->get('expense', 'FinancialController::expense');
     $routes->get('dashboard', 'FinancialController::dashboard');
     $routes->post('updateTransactionDate/(:num)', 'FinancialController::updateTransactionDate/$1');
+    $routes->get('fund-transactions', 'FinancialController::fundTransactions');
+    $routes->get('export-fund-transactions', 'FinancialController::exportFundTransactions');
 });
 $routes->get('/customers/sub-customers', 'CustomerController::subCustomerIndex');
-$routes->get('/customers/sub-edit/(:num)', 'CustomerController::subCustomerEdit/$1');
-$routes->post('/customers/sub-edit/(:num)', 'CustomerController::subCustomerEdit/$1');
+$routes->get('/customers/edit-sub/(:num)', 'CustomerController::subCustomerEdit/$1');
+$routes->post('/customers/edit-sub/(:num)', 'CustomerController::subCustomerEdit/$1');
 $routes->get('/customers/sub-detail/(:num)', 'CustomerController::subCustomerDetail/$1');
 $routes->get('/customers/delete-sub/(:num)', 'CustomerController::subCustomerDelete/$1');
 $routes->get('/customers/sub-customers/create', 'CustomerController::subCustomerCreate');
@@ -274,3 +280,34 @@ $routes->group('order-inspections', function ($routes) {
 $routes->get('/api/pending-inspections', 'OrderInspectionController::getPendingInspections');
 $routes->post('/api/confirm-notification', 'OrderInspectionController::confirmNotification');
 $routes->post('/api/set-inspection', 'OrderInspectionController::setInspectionByApi');
+$routes->get('api/customer/balance/(:num)', 'TransactionController::getCustomerBalanceApi/$1');
+
+// Transaction Types Routes
+$routes->group('transaction-types', ['filter' => 'auth'], function ($routes) {
+    // Hiển thị danh sách
+    $routes->get('/', 'TransactionTypeController::index');
+
+    // Tạo mới
+    $routes->get('create', 'TransactionTypeController::create');
+    $routes->post('/', 'TransactionTypeController::store');
+
+    // Chỉnh sửa
+    $routes->get('edit/(:num)', 'TransactionTypeController::edit/$1');
+    $routes->post('update/(:num)', 'TransactionTypeController::update/$1');
+
+    // Xóa
+    $routes->get('delete/(:num)', 'TransactionTypeController::delete/$1');
+
+    // Toggle trạng thái
+    $routes->get('toggle/(:num)', 'TransactionTypeController::toggleActive/$1');
+
+    // Thống kê
+    $routes->get('statistics', 'TransactionTypeController::statistics');
+
+    // API endpoints
+    $routes->group('api', function ($routes) {
+        $routes->get('by-category', 'TransactionTypeController::getByCategory');
+        $routes->get('active', 'TransactionTypeController::getActive');
+        $routes->get('statistics', 'TransactionTypeController::getStatistics');
+    });
+});

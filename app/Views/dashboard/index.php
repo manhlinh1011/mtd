@@ -192,7 +192,7 @@
                     </div>
                 </div>
                 <div class="card-footer d-flex align-items-center justify-content-between">
-                    <a class="small stretched-link" href="<?= base_url('transactions') ?>">Chi tiết</a>
+                    <a class="small stretched-link" href="<?= base_url('financial/fund-transactions') ?>">Chi tiết</a>
                 </div>
             </div>
         </div>

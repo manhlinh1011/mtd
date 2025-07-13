@@ -15,7 +15,18 @@
                 <div class="card-body">
                     <form method="get" class="mb-3">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
+                                <label>Quỹ</label>
+                                <select name="fund_id" class="form-control">
+                                    <option value="">Tất cả quỹ</option>
+                                    <?php foreach ($funds as $fund): ?>
+                                        <option value="<?= $fund['id'] ?>" <?= ($fundFilter == $fund['id']) ? 'selected' : '' ?>>
+                                            <?= esc($fund['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label>Loại phiếu</label>
                                 <select name="type" class="form-control">
                                     <option value="">Tất cả</option>
@@ -23,7 +34,7 @@
                                     <option value="expense" <?= $typeFilter === 'expense' ? 'selected' : '' ?>>Chi</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label>Trạng thái</label>
                                 <select name="status" class="form-control">
                                     <option value="">Tất cả</option>

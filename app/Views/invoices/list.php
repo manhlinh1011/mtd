@@ -105,7 +105,7 @@
                                 </td>
                                 <td class="text-center"><?= $invoice['id'] ?></td>
                                 <td class="text-center"><?= date('H:i d-m-Y', strtotime($invoice['created_at'])) ?></td>
-                                <td class="text-center"><?= $invoice['customer_code'] ?> (<?= $invoice['fullname'] ?>)</td>
+                                <td class="text-center"><a href="<?= base_url('customers/detail/' . $invoice['customer_id']) ?>" target="_blank"><?= $invoice['customer_code'] ?> (<?= $invoice['fullname'] ?>)</a> </td>
                                 <td class="text-center"><?= $invoice['sub_customer_code'] ?? '-' ?></td>
                                 <td class="text-center"><?= number_format($invoice['shipping_fee'], 0, ',', '.') ?></td>
                                 <td class="text-center"><?= $invoice['order_count'] ?></td>
@@ -113,18 +113,21 @@
                                     <strong><?= number_format($invoice['total_amount'], 0, ',', '.') ?></strong>
                                 </td>
                                 <td class="text-center">
-                                    <?php if ($invoice['shipping_confirmed_at'] === null): ?>
+                                    <?php if ($invoice['has_order_without_price']): ?>
+                                        <span class="badge badge-danger" style="background-color: #dc3545; color: #fff;">Chờ sửa giá</span>
+                                    <?php elseif ($invoice['shipping_confirmed_at'] === null): ?>
                                         <span class="badge badge-warning">Đang xuất</span>
-
                                     <?php else: ?>
                                         <span class="badge badge-success">Đã xuất</span>
                                     <?php endif; ?>
-
-
                                 </td>
                                 <td class="text-center">
                                     <?php if (!$invoice['has_shipping_request']): ?>
-                                        <?php if ($invoice['customer_payment_type'] == 'prepaid' && $invoice['payment_status'] != 'paid'): ?>
+                                        <?php if ($invoice['has_order_without_price']): ?>
+                                            <button type="button" class="btn btn-secondary btn-sm" onclick="showPriceWarning()" disabled style="cursor:not-allowed;opacity:0.7;">
+                                                <i class="fas fa-truck"></i> Yêu cầu ship
+                                            </button>
+                                        <?php elseif ($invoice['customer_payment_type'] == 'prepaid' && $invoice['payment_status'] != 'paid'): ?>
                                             <button type="button" class="btn btn-warning btn-sm" onclick="showPaymentWarning()">
                                                 <i class="fas fa-truck"></i> Yêu cầu ship
                                             </button>
@@ -318,6 +321,24 @@
     </div>
 </div>
 
+<!-- Modal cảnh báo sửa giá -->
+<div class="modal fade" id="priceWarningModal" tabindex="-1" aria-labelledby="priceWarningModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="priceWarningModalLabel">Cảnh báo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePriceWarning()"></button>
+            </div>
+            <div class="modal-body">
+                <p>Phải sửa giá cho tất cả đơn hàng trong phiếu xuất thì mới được phép giao hàng.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closePriceWarning()">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     .view-shipping-details {
         text-decoration: none;
@@ -445,6 +466,19 @@
     function closePaymentWarning() {
         if (paymentWarningModal) {
             paymentWarningModal.hide();
+        }
+    }
+
+    let priceWarningModal;
+
+    function showPriceWarning() {
+        priceWarningModal = new bootstrap.Modal(document.getElementById('priceWarningModal'));
+        priceWarningModal.show();
+    }
+
+    function closePriceWarning() {
+        if (priceWarningModal) {
+            priceWarningModal.hide();
         }
     }
 

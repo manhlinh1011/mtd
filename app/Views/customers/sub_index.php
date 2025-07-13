@@ -51,12 +51,10 @@
                                         <th>Khách hàng chính</th>
                                         <th>Số điện thoại</th>
                                         <th>Địa chỉ</th>
-                                        <th>Link Zalo</th>
-                                        <th>Email</th>
                                         <th>Số đơn hàng</th>
                                         <th>Phiếu xuất</th>
                                         <?php if (in_array(session('role'), ['Quản lý'])): ?>
-                                            <th>Hành động</th>
+                                            <th style="width: 110px;">Hành động</th>
                                         <?php endif; ?>
                                     </tr>
                                 </thead>
@@ -69,21 +67,13 @@
                                             <td class="text-center"><?= $subCustomer['customer_code'] ?> (<?= $subCustomer['customer_fullname'] ?>)</td>
                                             <td class="text-center"><?= $subCustomer['phone'] ?></td>
                                             <td><?= $subCustomer['address'] ?></td>
-                                            <td class="text-center">
-                                                <?php if (!empty($subCustomer['zalo_link'])): ?>
-                                                    <a href="<?= $subCustomer['zalo_link'] ?>" target="_blank">Zalo</a>
-                                                <?php else: ?>
-                                                    Không có
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= $subCustomer['email'] ?></td>
                                             <td class="text-center"><?= $subCustomer['order_count'] ?></td>
                                             <td class="text-center"><?= $subCustomer['paid_invoice_count'] ?>/<?= $subCustomer['invoice_count'] ?></td>
 
                                             <?php if (in_array(session('role'), ['Quản lý'])): ?>
                                                 <td class="text-center" style="padding: 2px;">
                                                     <a href="/customers/sub-detail/<?= $subCustomer['id'] ?>" class="btn btn-info btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-eye"></i></a>
-                                                    <a href="/customers/sub-edit/<?= $subCustomer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-pencil"></i></a>
+                                                    <a href="/customers/edit-sub/<?= $subCustomer['id'] ?>" class="btn btn-warning btn-sm" style="padding: 2px 8px;"><i class="mdi mdi-pencil"></i></a>
                                                     <a href="/customers/delete-sub/<?= $subCustomer['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa?')" style="padding: 2px 8px;"><i class="mdi mdi-trash-can"></i></a>
                                                 </td>
                                             <?php else: ?>
@@ -124,32 +114,14 @@
                 [10, 15, 20, 50, 100]
             ],
             columnDefs: [{
-                    targets: [4, 5, 6, 7, 10],
+                    targets: [4, 5, 6, 7, 8], // SĐT, Địa chỉ, Số đơn hàng, Phiếu xuất, Hành động (nếu có)
                     orderable: false
-                }, // Không sắp xếp các cột: SĐT, Địa chỉ, Zalo, Email, Hành động
+                },
                 {
                     targets: 0,
                     type: 'num',
                     render: function(data, type) {
                         return type === 'sort' ? parseInt(data) || 0 : data;
-                    }
-                },
-                {
-                    targets: 8,
-                    type: 'num',
-                    render: function(data, type) {
-                        return type === 'sort' ? parseInt(data) || 0 : data;
-                    }
-                },
-                {
-                    targets: 9,
-                    type: 'num',
-                    render: function(data, type) {
-                        if (type === 'sort') {
-                            const parts = data.split('/');
-                            return parseInt(parts[1]) || 0;
-                        }
-                        return data;
                     }
                 }
             ],

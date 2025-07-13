@@ -88,10 +88,28 @@ class CustomerModel extends Model
                 ->balance ?? 0;
 
             // Debug để kiểm tra giá trị
-            log_message('debug', "Customer ID: {$customerId}, Total Balance: {$balance}");
+            //log_message('debug', "Customer ID: {$customerId}, Total Balance: {$balance}");
 
             cache()->save($cacheKey, $balance, 3600); // Cache trong 1 giờ
         }
+
+        return $balance;
+    }
+
+    /**
+     * Lấy số dư khách hàng trực tiếp từ database, không qua cache
+     * @param int $customerId
+     * @return float
+     */
+    public function getCustomerBalanceDirect($customerId)
+    {
+        // Lấy tổng số dư từ các giao dịch trực tiếp từ database
+        $balance = $this->db->table('customer_transactions')
+            ->selectSum('amount', 'balance')
+            ->where('customer_id', $customerId)
+            ->get()
+            ->getRow()
+            ->balance ?? 0;
 
         return $balance;
     }

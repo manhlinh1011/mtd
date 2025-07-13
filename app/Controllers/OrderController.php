@@ -26,7 +26,7 @@ class OrderController extends BaseController
 
         // Lấy thông tin tìm kiếm từ GET
         $filters = [
-            'tracking_code' => $this->request->getGet('tracking_code'),
+            'tracking_code' => trim($this->request->getGet('tracking_code') ?? ''),
             'customer_code' => $this->request->getGet('customer_code') ?? 'ALL',
             'from_date' => $this->request->getGet('from_date'),
             'to_date' => $this->request->getGet('to_date'),
@@ -1080,7 +1080,7 @@ class OrderController extends BaseController
                         }
                     } else {
                         // Không gửi thông báo nếu không có thread_id_zalo_notify_order
-                        log_message('debug', 'Không gửi thông báo vì thiếu thread_id_zalo_notify_order');
+                        log_message('debug', 'Không gửi thông báo cho khách hàng ' . $updatedOrder['customer_code'] . ' vì thiếu thread_id_zalo_notify_order');
                         return false;
                     }
                 } else {
@@ -1502,7 +1502,7 @@ class OrderController extends BaseController
                     }
                 } else {
                     // Không gửi thông báo nếu không có thread_id_zalo_notify_order
-                    log_message('debug', 'Không gửi thông báo vì thiếu thread_id_zalo_notify_order');
+                    log_message('debug', 'Không gửi thông báo cho khách hàng ' . $order['customer_code'] . ' vì thiếu thread_id_zalo_notify_order');
                     return false;
                 }
             } else {

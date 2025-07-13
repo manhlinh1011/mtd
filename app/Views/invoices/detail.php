@@ -1,6 +1,21 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
-
+<div class="container-fluid d-print-none">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Số dư khách hàng: <?= number_format($customer['balance'], 0, ',', '.') ?> đ</h5>
+                    <?php if ($invoice['payment_status'] === 'unpaid' && $customer['balance'] < $total_amount): ?>
+                        <button class="btn btn-primary" id="quickDepositBtn" data-toggle="modal" data-target="#quickDepositModal">
+                            <i class="mdi mdi-cash-multiple"></i> Nạp nhanh <?= number_format($total_amount, 0, ',', '.') ?>đ
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="container-fluid">
     <h1 class="text-center">PHIẾU XUẤT HÀNG</h1>
     <h4 class="text-center">#<?= $invoice['id'] ?></h4>
@@ -164,21 +179,21 @@
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="15">Phí giao hàng</th>
+                    <th colspan="16">Phí giao hàng</th>
                     <th><?= number_format($invoice['shipping_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="15">Phí khác</th>
+                    <th colspan="16">Phí khác</th>
                     <th><?= number_format($invoice['other_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
                     <?php endif; ?>
                 </tr>
                 <tr>
-                    <th colspan="15">Tổng cộng</th>
+                    <th colspan="16">Tổng cộng</th>
                     <th><?= number_format($total + $invoice['shipping_fee'] + $invoice['other_fee'], 0, ',', '.') ?> đ</th>
                     <?php if (in_array(session('role'), ['Quản lý'])): ?>
                         <th class="d-print-none"></th>
@@ -548,6 +563,73 @@
         </div>
     </div>
 
+    <!-- Modal nạp tiền nhanh cho phiếu xuất -->
+    <div class="modal fade" id="quickDepositModal" tabindex="-1" role="dialog" aria-labelledby="quickDepositModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="quickDepositForm" action="/invoices/deposit-ajax" method="POST">
+                    <input type="hidden" name="customer_id" value="<?= $invoice['customer_id'] ?>">
+                    <?= csrf_field() ?>
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="quickDepositModalLabel">Nạp tiền nhanh cho khách hàng theo phiếu xuất</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Số tiền nạp</label>
+                            <input type="text" name="amount" id="quickDepositAmount" class="form-control" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Chọn quỹ</label>
+                            <select name="fund_id" class="form-control" required>
+                                <option value="">-- Chọn quỹ --</option>
+                                <?php foreach ($funds as $fund): ?>
+                                    <option value="<?= $fund['id'] ?>">
+                                        <?= esc($fund['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày giao dịch</label>
+                            <input type="date" name="transaction_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Ghi chú</label>
+                            <textarea name="notes" id="quickDepositNotes" class="form-control"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Nạp tiền</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal thông báo nạp tiền thành công -->
+    <div class="modal fade" id="quickDepositSuccessModal" tabindex="-1" role="dialog" aria-labelledby="quickDepositSuccessModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="quickDepositSuccessModalLabel">Nạp tiền thành công</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-success font-weight-bold">Nạp tiền cho phiếu xuất thành công!</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="quickDepositSuccessConfirmBtn">Xác nhận</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <?= $this->endSection() ?>
@@ -827,14 +909,80 @@
         // Xử lý khi modal Báo thanh toán Zalo được hiển thị
         $('#modalNotifyPayment').on('show.bs.modal', function() {
             var hasZaloSentToday = <?= $has_zalo_sent_today ? 'true' : 'false' ?>;
+            var hasZaloSentBefore = <?= $has_zalo_sent_before ? 'true' : 'false' ?>;
             if (hasZaloSentToday) {
-                $('#zaloSentTodayWarning').show();
-                $('#notifyPaymentMsg').text(''); // Xóa thông báo cũ nếu có
+                $('#zaloSentTodayWarning').text('Thông báo phiếu xuất này đã được gửi 1 lần ngày hôm nay rồi nhé!').show();
+                $('#notifyPaymentMsg').text('');
+            } else if (hasZaloSentBefore) {
+                $('#zaloSentTodayWarning').text('Cảnh báo đã gửi 1 lần cho khách rồi').show();
+                $('#notifyPaymentMsg').text('');
             } else {
                 $('#zaloSentTodayWarning').hide();
                 $('#btnSendNotifyPayment').prop('disabled', false);
-                $('#notifyPaymentMsg').text(''); // Xóa thông báo cũ nếu có
+                $('#notifyPaymentMsg').text('');
             }
+        });
+
+        // Thay bằng sự kiện show.bs.modal để tự động fill số tiền và ghi chú
+        $('#quickDepositModal').on('show.bs.modal', function() {
+            var amount = <?= json_encode($total_amount) ?>;
+            var formatted = Number(amount).toLocaleString('vi-VN', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+            $('#quickDepositAmount').val(formatted);
+            $('#quickDepositNotes').val('Nạp tiền thanh toán pxk #<?= $invoice['id'] ?> số tiền ' + formatted + 'đ');
+        });
+
+        $('#quickDepositAmount').on('input', function() {
+            let value = $(this).val().replace(/[^0-9]/g, '');
+            if (value) {
+                $(this).val(Number(value).toLocaleString('vi-VN'));
+            } else {
+                $(this).val('');
+            }
+        });
+
+        $('#quickDepositForm').off('submit').on('submit', function(e) {
+            e.preventDefault();
+            var form = $(this);
+            var url = form.attr('action');
+            var amountInput = $('#quickDepositAmount');
+            // Lấy giá trị số tiền, xóa dấu chấm, gán lại cho input
+            var raw = amountInput.val().replace(/\./g, '');
+            amountInput.val(raw);
+
+            // Serialize lại sau khi đã xóa dấu chấm
+            var data = form.serialize();
+
+            // Format lại cho đẹp sau khi submit
+            setTimeout(function() {
+                amountInput.val(Number(raw).toLocaleString('vi-VN'));
+            }, 500);
+
+            $.post(url, data)
+                .done(function(res) {
+                    if (typeof res === 'string' && res.indexOf('<!DOCTYPE html>') !== -1) {
+                        alert('Có lỗi xảy ra ở phía server!');
+                        return;
+                    }
+                    if (res.success || res.status === true) {
+                        $('#quickDepositModal').modal('hide');
+                        setTimeout(function() {
+                            $('#quickDepositSuccessModal').modal('show');
+                        }, 400);
+                    } else {
+                        alert(res.message || 'Có lỗi xảy ra, vui lòng thử lại!');
+                    }
+                })
+                .fail(function() {
+                    alert('Có lỗi xảy ra, vui lòng thử lại!');
+                });
+        });
+
+        $('#quickDepositSuccessConfirmBtn').on('click', function() {
+            $('#quickDepositSuccessModal').modal('hide');
+            window.location.reload();
         });
     });
 

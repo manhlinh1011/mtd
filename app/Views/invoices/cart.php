@@ -52,7 +52,8 @@
                                         <th>Tổng phí nội địa</th>
                                         <th>Giá cuối cùng</th>
                                         <th>Phương thức tính giá</th>
-                                        <th>Ngày tạo</th>
+                                        <th>Kho TQ</th>
+                                        <th>Kho VN</th>
                                         <th>Hành động</th>
                                     </tr>
                                 </thead>
@@ -78,6 +79,7 @@
                                             <td class="text-center"><?= number_format($order['final_price'], 0, ',', '.') ?></td>
                                             <td class="text-center"><?= esc($order['pricing_method']) ?></td>
                                             <td class="text-center"><?= esc($order['created_at']) ?></td>
+                                            <td class="text-center"><?= esc($order['vietnam_stock_date']) ?></td>
                                             <td class="text-center">
                                                 <button class="btn btn-danger btn-sm remove-from-cart" data-order-id="<?= esc($order['order_id']) ?>"><i class="fas fa-times"></i></button>
                                             </td>

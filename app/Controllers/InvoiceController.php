@@ -219,9 +219,13 @@ class InvoiceController extends BaseController
             // Tính total_amount dựa trên orders và shipping_fee, giống detail.php
             $orders = $orderModel->where('invoice_id', $invoice['id'])->findAll();
             $total = 0;
+            $hasOrderWithoutPrice = false;
             foreach ($orders as $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
+                if ((float)$order['price_per_kg'] == 0 && (float)$order['price_per_cubic_meter'] == 0) {
+                    $hasOrderWithoutPrice = true;
+                }
                 $finalPrice = max($priceByWeight, $priceByVolume) +
                     ($order['domestic_fee'] * $order['exchange_rate']) +
                     $order['official_quota_fee'] +
@@ -248,6 +252,7 @@ class InvoiceController extends BaseController
             // Kiểm tra xem phiếu xuất này đã có yêu cầu giao hàng chưa
             $existingShipping = $shippingManagerModel->where('invoice_id', $invoice['id'])->first();
             $invoice['has_shipping_request'] = ($existingShipping !== null); // Thêm trường mới vào dữ liệu invoice
+            $invoice['has_order_without_price'] = $hasOrderWithoutPrice;
         }
 
         // Lấy danh sách khách hàng để hiển thị dropdown
@@ -532,9 +537,17 @@ class InvoiceController extends BaseController
             return redirect()->to('/invoices')->with('error', 'Phiếu xuất không tồn tại.');
         }
 
+        // Luôn lấy khách hàng chính
         $customer = $customerModel->find($invoice['customer_id']);
         if (!$customer) {
             return redirect()->to('/invoices')->with('error', 'Khách hàng không tồn tại.');
+        }
+
+        // Nếu có sub_customer_id, lấy thêm thông tin sub-customer để hiển thị
+        $subCustomer = null;
+        if (!empty($invoice['sub_customer_id'])) {
+            $subCustomerModel = new \App\Models\SubCustomerModel();
+            $subCustomer = $subCustomerModel->find($invoice['sub_customer_id']);
         }
 
         $orders = $orderModel
@@ -555,7 +568,9 @@ class InvoiceController extends BaseController
 
         // Kiểm tra xem đã gửi Zalo trong ngày hôm nay chưa
         $hasZaloSentToday = false;
+        $hasZaloSentBefore = false;
         if (!empty($invoice['zalo_sent_time'])) {
+            $hasZaloSentBefore = true;
             $zaloSentTime = new \DateTime($invoice['zalo_sent_time']);
             $today = new \DateTime();
             if ($zaloSentTime->format('Y-m-d') === $today->format('Y-m-d')) {
@@ -591,7 +606,8 @@ class InvoiceController extends BaseController
 
         return view('invoices/detail', [
             'invoice' => $invoice,
-            'customer' => $customer,
+            'customer' => $customer, // luôn là khách hàng chính
+            'subCustomer' => $subCustomer, // chỉ để hiển thị nếu có
             'orders' => $orders,
             'creator' => $creator,
             'payment_status' => $paymentStatus,
@@ -600,7 +616,9 @@ class InvoiceController extends BaseController
             'shipping_confirmed_by' => $shipping_confirmed_by,
             'customers' => $customers, // Truyền danh sách khách hàng vào view
             'paymentFunds' => $paymentFunds,
-            'has_zalo_sent_today' => $hasZaloSentToday // Truyền biến này sang view
+            'has_zalo_sent_today' => $hasZaloSentToday,
+            'has_zalo_sent_before' => $hasZaloSentBefore,
+            'funds' => $paymentFunds, // Thêm dòng này để truyền biến funds cho modal nạp tiền nhanh
         ]);
     }
 
@@ -2817,5 +2835,92 @@ class InvoiceController extends BaseController
         }
 
         return $this->response->setJSON(['status' => 'success']);
+    }
+
+    // Nạp tiền nhanh cho phiếu xuất (AJAX Only)
+    public function depositAjax()
+    {
+        try {
+            if (!$this->request->isAJAX()) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Chỉ chấp nhận AJAX request.'
+                ]);
+            }
+
+            $customerId = $this->request->getPost('customer_id');
+            $amount = str_replace('.', '', $this->request->getPost('amount'));
+            $fundId = $this->request->getPost('fund_id');
+            $notes = $this->request->getPost('notes');
+            $transactionDate = $this->request->getPost('transaction_date') ?: date('Y-m-d');
+
+            // Log để debug
+            log_message('debug', "depositAjax - customerId: {$customerId}, amount: {$amount}, fundId: {$fundId}");
+
+            // Validate
+            if (!$customerId || !$fundId || !$amount || $amount <= 0) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Vui lòng nhập đầy đủ thông tin và số tiền hợp lệ.'
+                ]);
+            }
+
+            $customerModel = new \App\Models\CustomerModel();
+            $transactionModel = new \App\Models\CustomerTransactionModel();
+
+            $customer = $customerModel->find($customerId);
+            if (!$customer) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Khách hàng không tồn tại.'
+                ]);
+            }
+
+            // Tạo giao dịch nạp tiền
+            $transactionData = [
+                'customer_id' => $customerId,
+                'fund_id' => $fundId,
+                'transaction_type' => 'deposit',
+                'amount' => $amount,
+                'notes' => $notes,
+                'created_by' => session()->get('user_id'),
+                'transaction_date' => $transactionDate,
+                'created_at' => date('Y-m-d H:i:s'), // Thêm created_at nếu cần
+            ];
+
+            // Kiểm tra kết quả insert
+            $insertResult = $transactionModel->insert($transactionData);
+            if (!$insertResult) {
+                log_message('error', 'depositAjax - Insert transaction failed: ' . json_encode($transactionModel->errors()));
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể tạo giao dịch. Vui lòng thử lại.'
+                ]);
+            }
+
+            // Cập nhật số dư khách hàng
+            $newBalance = (float)$customer['balance'] + (float)$amount;
+            $updateResult = $customerModel->update($customerId, ['balance' => $newBalance]);
+            if (!$updateResult) {
+                log_message('error', 'depositAjax - Update customer balance failed');
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Không thể cập nhật số dư. Vui lòng thử lại.'
+                ]);
+            }
+
+            log_message('debug', "depositAjax - Success: customerId: {$customerId}, amount: {$amount}, newBalance: {$newBalance}");
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Nạp tiền thành công!'
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'depositAjax - Exception: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ]);
+        }
     }
 }

@@ -32,7 +32,7 @@
                 </div>
                 <div class="form-group">
                     <label>Số tiền</label>
-                    <input type="number" name="amount" class="form-control" required>
+                    <input type="text" name="amount" class="form-control" required>
                 </div>
                 <div class="form-group">
                     <label>Mô tả</label>
@@ -47,5 +47,25 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const amountInput = document.querySelector('input[name="amount"]');
+        if (amountInput) {
+            amountInput.addEventListener('input', function(e) {
+                // Lấy giá trị chỉ gồm số
+                let value = this.value.replace(/[^0-9]/g, '');
+                if (value) {
+                    this.value = Number(value).toLocaleString('vi-VN');
+                } else {
+                    this.value = '';
+                }
+            });
 
+            // Khi submit form, bỏ dấu chấm để gửi số thuần về server
+            amountInput.form.addEventListener('submit', function() {
+                amountInput.value = amountInput.value.replace(/\./g, '').replace(/,/g, '');
+            });
+        }
+    });
+</script>
 <?= $this->endSection() ?>
