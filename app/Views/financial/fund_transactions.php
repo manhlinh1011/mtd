@@ -33,6 +33,17 @@
                                 <input type="date" name="date_to" class="form-control" value="<?= esc($dateToFilter) ?>">
                             </div>
                             <div class="col-md-2">
+                                <label>Loại giao dịch</label>
+                                <select name="transaction_type_id" class="form-control">
+                                    <option value="">Tất cả loại</option>
+                                    <?php foreach ($transactionTypes as $type): ?>
+                                        <option value="<?= $type['id'] ?>" <?= (isset($transactionTypeFilter) && $transactionTypeFilter == $type['id']) ? 'selected' : '' ?>>
+                                            <?= esc($type['name']) ?> (<?= esc($type['category']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label>Trạng thái</label>
                                 <select name="status" class="form-control">
                                     <option value="">Tất cả</option>
@@ -106,10 +117,23 @@
                 <input type="hidden" name="fund_id" value="<?= esc($fundFilter) ?>">
                 <input type="hidden" name="date_from" value="<?= esc($dateFromFilter) ?>">
                 <input type="hidden" name="date_to" value="<?= esc($dateToFilter) ?>">
+                <input type="hidden" name="transaction_type_id" value="<?= esc($transactionTypeFilter) ?>">
                 <input type="hidden" name="status" value="<?= esc($statusFilter) ?>">
                 <button class="btn btn-success"> <i class="mdi mdi-file-excel"></i> Xuất file excel</button>
             </form>
         </div>
+
+        <!-- Hiển thị flash messages -->
+        <?php if (session()->getFlashdata('success')): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <?= session()->getFlashdata('success') ?>
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        <?php endif; ?>
+
+
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
@@ -124,6 +148,7 @@
                                 <th style="width: 100px;">Chi</th>
                                 <th style="width: 220px;">Quỹ</th>
                                 <th>Mô tả</th>
+                                <th style="width: 120px;">Loại giao dịch</th>
                                 <th style="width: 100px;">Trạng thái</th>
                                 <th style="width: 100px;">Người tạo</th>
                                 <th style="width: 100px;">Người duyệt</th>
@@ -201,6 +226,57 @@
                                         <?php endif; ?>
                                         <?= $t['description'] ?? '' ?>
                                     </td>
+                                    <td class="text-center <?= empty($t['is_customer_deposit']) && empty($t['is_customer_withdraw']) ? 'type-transaction-cell' : '' ?>">
+                                        <span><?= isset($t['transaction_type_name']) ? esc($t['transaction_type_name']) : '' ?></span>
+                                        <?php if (empty($t['is_customer_deposit']) && empty($t['is_customer_withdraw'])): ?>
+                                            <button type="button" class="edit-type-btn" data-toggle="modal" data-target="#editTypeModal<?= $t['id'] ?>">
+                                                <i class="mdi mdi-pencil"></i>
+                                            </button>
+                                            <!-- Modal sửa loại giao dịch -->
+                                            <div class="modal fade" id="editTypeModal<?= $t['id'] ?>" tabindex="-1" role="dialog" aria-labelledby="editTypeModalLabel<?= $t['id'] ?>" aria-hidden="true">
+                                                <div class="modal-dialog" role="document">
+                                                    <div class="modal-content">
+                                                        <form method="post" action="<?= base_url('financial/update-transaction-type') ?>">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title" id="editTypeModalLabel<?= $t['id'] ?>">Sửa loại giao dịch</h5>
+                                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                    <span aria-hidden="true">&times;</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <div class="form-group">
+                                                                    <label>Chọn loại giao dịch mới</label>
+                                                                    <select name="transaction_type_id" class="form-control" required>
+                                                                        <option value="">-- Chọn loại giao dịch --</option>
+                                                                        <?php foreach ($transactionTypes as $type): ?>
+                                                                            <?php
+                                                                            // Chỉ hiển thị loại giao dịch phù hợp với loại giao dịch hiện tại
+                                                                            $showOption = false;
+                                                                            if ($t['type'] === 'income' && $type['category'] === 'income') {
+                                                                                $showOption = true;
+                                                                            } elseif ($t['type'] === 'expense' && $type['category'] === 'expense') {
+                                                                                $showOption = true;
+                                                                            }
+                                                                            ?>
+                                                                            <?php if ($showOption): ?>
+                                                                                <option value="<?= $type['id'] ?>" <?= (isset($t['transaction_type_id']) && $t['transaction_type_id'] == $type['id']) ? 'selected' : '' ?>><?= esc($type['name']) ?> (<?= esc($type['category']) ?>)</option>
+                                                                            <?php endif; ?>
+                                                                        <?php endforeach; ?>
+                                                                    </select>
+                                                                </div>
+                                                                <input type="hidden" name="id" value="<?= $t['id'] ?>">
+                                                                <input type="hidden" name="table" value="financial">
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                                                                <button type="submit" class="btn btn-primary">Lưu</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-center">
                                         <?php if ($t['status'] === 'pending'): ?>
                                             <span class="badge bg-warning">Chờ duyệt</span>
@@ -233,17 +309,17 @@
                             <ul class="pagination justify-content-center">
                                 <?php if ($currentPage > 1): ?>
                                     <li class="page-item">
-                                        <a class="page-link" href="?page=1<?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?>">&laquo;</a>
+                                        <a class="page-link" href="?page=1<?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?><?= $transactionTypeFilter ? '&transaction_type_id=' . $transactionTypeFilter : '' ?><?= $statusFilter ? '&status=' . $statusFilter : '' ?>">&laquo;</a>
                                     </li>
                                 <?php endif; ?>
                                 <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
                                     <li class="page-item <?= $i == $currentPage ? 'active' : '' ?>">
-                                        <a class="page-link" href="?page=<?= $i ?><?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?>"><?= $i ?></a>
+                                        <a class="page-link" href="?page=<?= $i ?><?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?><?= $transactionTypeFilter ? '&transaction_type_id=' . $transactionTypeFilter : '' ?><?= $statusFilter ? '&status=' . $statusFilter : '' ?>"><?= $i ?></a>
                                     </li>
                                 <?php endfor; ?>
                                 <?php if ($currentPage < $totalPages): ?>
                                     <li class="page-item">
-                                        <a class="page-link" href="?page=<?= $totalPages ?><?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?>">&raquo;</a>
+                                        <a class="page-link" href="?page=<?= $totalPages ?><?= $fundFilter ? '&fund_id=' . $fundFilter : '' ?><?= $dateFromFilter ? '&date_from=' . $dateFromFilter : '' ?><?= $dateToFilter ? '&date_to=' . $dateToFilter : '' ?><?= $transactionTypeFilter ? '&transaction_type_id=' . $transactionTypeFilter : '' ?><?= $statusFilter ? '&status=' . $statusFilter : '' ?>">&raquo;</a>
                                     </li>
                                 <?php endif; ?>
                             </ul>
@@ -254,4 +330,47 @@
         </div>
     </div>
 </div>
+
+
+
+<?php if (session()->getFlashdata('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= session()->getFlashdata('error') ?>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+<?php endif; ?>
+<style>
+    .type-transaction-cell {
+        position: relative;
+        cursor: pointer;
+        padding-right: 10px !important;
+    }
+
+    .type-transaction-cell .edit-type-btn {
+        display: none;
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #007bff;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 2px 5px;
+        z-index: 10;
+    }
+
+    .type-transaction-cell:hover .edit-type-btn {
+        display: inline-block !important;
+    }
+
+    .type-transaction-cell .edit-type-btn:hover {
+        color: #0056b3;
+        background-color: #f8f9fa;
+        border-radius: 3px;
+    }
+</style>
 <?= $this->endSection() ?>

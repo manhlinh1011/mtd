@@ -189,6 +189,18 @@ class OrderModel extends Model
             $whereConditions['customers.customer_code'] = $filters['customer_code'];
         }
 
+        if (!empty($filters['sub_customer_id']) && $filters['sub_customer_id'] !== 'ALL') {
+            if ($filters['sub_customer_id'] === 'NONE') {
+                $whereConditions['orders.sub_customer_id'] = null;
+            } else {
+                $whereConditions['orders.sub_customer_id'] = $filters['sub_customer_id'];
+            }
+        }
+
+        if (!empty($filters['order_code'])) {
+            $whereConditions['orders.order_code'] = $filters['order_code'];
+        }
+
         if (!empty($filters['from_date'])) {
             $whereConditions['orders.created_at >='] = $filters['from_date'] . ' 00:00:00';
         }
@@ -196,6 +208,15 @@ class OrderModel extends Model
         if (!empty($filters['to_date'])) {
             $whereConditions['orders.created_at <='] = $filters['to_date'] . ' 23:59:59';
         }
+
+        if (!empty($filters['vn_from_date'])) {
+            $whereConditions['orders.vietnam_stock_date >='] = $filters['vn_from_date'] . ' 00:00:00';
+        }
+        if (!empty($filters['vn_to_date'])) {
+            $whereConditions['orders.vietnam_stock_date <='] = $filters['vn_to_date'] . ' 23:59:59';
+        }
+
+        // shipping_status sẽ được xử lý riêng ở từng hàm thống kê nếu cần
 
         return $whereConditions;
     }

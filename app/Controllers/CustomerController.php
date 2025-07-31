@@ -477,7 +477,7 @@ class CustomerController extends BaseController
         ];
 
         $transactionModel = new CustomerTransactionModel();
-        $transactionModel->insert($transactionData);
+        $transactionModel->addTransaction($transactionData);
 
         // Cập nhật số dư khách hàng
         $customerModel = new CustomerModel();

@@ -108,18 +108,20 @@ $role = $session->get('role');
                     <li><a href="<?= base_url() ?>funds">Quản lý quỹ</a></li>
                 </ul>
             </li>
-
-            <li>
-                <a href="javascript: void(0);">
-                    <i class="mdi mdi-cash-multiple"></i>
-                    <span> Giao dịch</span>
-                    <span class="menu-arrow"></span>
-                </a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li><a href="<?= base_url() ?>financial/fund-transactions">Tất cả giao dịch</a></li>
-                    <li><a href="<?= base_url() ?>transaction-types">Loại giao dịch</a></li>
-                </ul>
-            </li>
+            <?php if (in_array(session('role'), ['Quản lý', 'Kế toán'])): ?>
+                <li>
+                    <a href="javascript: void(0);">
+                        <i class="mdi mdi-cash-multiple"></i>
+                        <span> Giao dịch</span>
+                        <span class="menu-arrow"></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li><a href="<?= base_url() ?>financial/fund-transactions">Tất cả giao dịch</a></li>
+                        <li><a href="<?= base_url() ?>transaction-types">Loại giao dịch</a></li>
+                        <li><a href="<?= base_url() ?>transaction-action-config">Cài đặt giao dịch</a></li>
+                    </ul>
+                </li>
+            <?php endif; ?>
             <li>
                 <a href="javascript: void(0);">
                     <i class="mdi mdi-account-group"></i>

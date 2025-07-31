@@ -170,7 +170,7 @@ class ShippingManagerController extends BaseController
         $db = \Config\Database::connect();
         $invoice = $db->table('invoices')
             ->select('invoices.*, 
-                customers.fullname as customer_name, customers.phone as customer_phone, customers.address as customer_address,
+                customers.fullname as customer_name, customers.phone as customer_phone, customers.address as customer_address, customers.is_free_shipping as is_free_shipping,
                 sub_customers.fullname as sub_customer_name, sub_customers.phone as sub_customer_phone, sub_customers.address as sub_customer_address')
             ->join('customers', 'customers.id = invoices.customer_id')
             ->join('sub_customers as sub_customers', 'sub_customers.id = invoices.sub_customer_id', 'left')
@@ -187,6 +187,10 @@ class ShippingManagerController extends BaseController
         if ($existingShipping !== null) {
             return redirect()->to('/shipping-manager')->with('error', 'Phiếu xuất này đã được tạo giao hàng');
         }
+
+        // Lấy thông tin khách hàng để kiểm tra is_free_shipping
+        $isFreeShipping = $invoice['is_free_shipping'] ?? 0;
+        $data['is_free_shipping'] = $isFreeShipping;
 
         $data['title'] = 'Tạo giao hàng mới';
         $data['invoice'] = $invoice;
@@ -214,13 +218,22 @@ class ShippingManagerController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
 
-        // Lấy thông tin phiếu xuất để lấy sub_customer_id
+        // Lấy thông tin phiếu xuất để lấy sub_customer_id và is_free_shipping
         $db = \Config\Database::connect();
         $invoice = $db->table('invoices')
-            ->select('sub_customer_id')
+            ->select('sub_customer_id, customer_id')
             ->where('id', $this->request->getPost('invoice_id'))
             ->get()
             ->getRowArray();
+        $customerModel = new \App\Models\CustomerModel();
+        $customer = $customerModel->find($this->request->getPost('customer_id'));
+        $isFreeShipping = $customer['is_free_shipping'] ?? 0;
+
+        // Nếu không phải khách miễn phí thì kiểm tra giá (giả sử bạn có logic kiểm tra giá ở đây)
+        if ($isFreeShipping != 1) {
+            // TODO: Thêm logic kiểm tra giá theo kg/khối ở đây nếu cần
+            // Nếu không đạt điều kiện thì return redirect()->back()->with('error', 'Cần nhập giá 1kg hoặc giá 1m³ để tạo giao hàng.');
+        }
 
         // Lấy dữ liệu từ form
         $data = [
@@ -238,9 +251,6 @@ class ShippingManagerController extends BaseController
             'notes' => $this->request->getPost('notes') ?: null
         ];
 
-
-
-        //return;
         // Lưu vào database
         if ($this->shippingManagerModel->insert($data)) {
             $this->notifyRequestShipment($this->shippingManagerModel->getInsertID());
@@ -318,6 +328,21 @@ class ShippingManagerController extends BaseController
             $shippingInfo .= "\nPhí giao hàng: " . $shipping['shipping_fee'] . " đ";
         }
 
+        // Bổ sung: Nếu khách hàng miễn phí vận chuyển, lấy danh sách đơn hàng
+        $order_list = [];
+        $customerModel = new \App\Models\CustomerModel();
+        $customer = $customerModel->find($shipping['customer_id']);
+        $isFreeShipping = $customer['is_free_shipping'] ?? 0;
+        if ($isFreeShipping == 1 && !empty($shipping['invoice_id'])) {
+            $orderModel = new \App\Models\OrderModel();
+            $orders = $orderModel->where('invoice_id', $shipping['invoice_id'])->findAll();
+            $order_list = [];
+            foreach ($orders as $order) {
+                $order_list[] = $order['tracking_code'] . ' - ' . ($order['package_code'] ?? '-') . ' - ' . $order['quantity'] . ' kiện - ' . number_format($order['total_weight'], 2) . ' kg';
+            }
+            // Không nối chuỗi, giữ nguyên là mảng để gửi JSON array
+        }
+
         $client = \Config\Services::curlrequest();
         try {
             $postData = [
@@ -331,22 +356,29 @@ class ShippingManagerController extends BaseController
                 'thread_id_zalo' => $thread_id_zalo,
                 'msg_zalo_type' => $msg_zalo_type,
                 'confirmed_by' => $shipping['confirmed_by_name'] ?? '',
-                'shipping_fee' => $shipping['shipping_fee'] ?? 0
+                'shipping_fee' => $shipping['shipping_fee'] ?? 0,
+                'is_free_shipping' => $isFreeShipping
             ];
-
-            // Kiểm tra nếu có thread_id_zalo mới gửi thông báo
-            if (!empty($thread_id_zalo)) {
+            if ($order_list) {
+                $postData['order_list'] = $order_list;
+                // Gửi bằng JSON nếu có order_list
+                $response = $client->request('POST', 'https://mqzcil.datadex.vn/webhook/thongbaoship', [
+                    'headers' => [
+                        'Content-Type' => 'application/json'
+                    ],
+                    'body' => json_encode($postData)
+                ]);
+            } else {
+                // Gửi kiểu cũ nếu không có order_list
                 $response = $client->request('POST', 'https://mqzcil.datadex.vn/webhook/thongbaoship', [
                     'headers' => [
                         'Content-Type' => 'application/x-www-form-urlencoded'
                     ],
                     'form_params' => $postData
                 ]);
-
-                log_message('debug', 'Notification response: ' . $response->getBody());
-            } else {
-                log_message('info', 'Không có thread_id_zalo để gửi thông báo ship cho đơn hàng #' . $shippingId);
             }
+
+            log_message('debug', 'Notification response: ' . $response->getBody());
             return true;
         } catch (\Exception $e) {
             log_message('error', 'Lỗi gửi thông báo đơn hàng về kho VN: ' . $e->getMessage());

@@ -4,7 +4,7 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <h1>Danh sách thu</h1>
+            <h1>Danh sách chi</h1>
             <a href="/financial" class="btn btn-secondary">Danh sách tất cả</a>
             <a href="/financial/income" class="btn btn-success">Danh sách thu</a>
             <a href="/financial/expense" class="btn btn-danger">Danh sách chi</a>
@@ -15,6 +15,7 @@
                         <th>ID</th>
                         <th>Ngày</th>
                         <th>Loại</th>
+                        <th>Loại giao dịch</th>
                         <th>Số tiền</th>
                         <th>Mô tả</th>
                         <th>Trạng thái</th>
@@ -28,6 +29,13 @@
                             <td class="text-center"><?= $t['id'] ?></td>
                             <td class="text-center"><?= $t['created_at'] ?></td>
                             <td class="text-center"><?= $t['type'] === 'income' ? 'Thu' : 'Chi' ?></td>
+                            <td class="text-center">
+                                <?php if ($t['transaction_type_name']): ?>
+                                    <span class="badge badge-info"><?= esc($t['transaction_type_name']) ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-secondary">Chưa phân loại</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-center"><?= $t['type'] === 'income' ? '+' : '-' ?><?= number_format($t['amount'], 0, ',', '.') ?></td>
                             <td class="text-center"><?= $t['description'] ?></td>
                             <td class="text-center">

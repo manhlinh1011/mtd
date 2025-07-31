@@ -11,9 +11,15 @@
             <form method="post" action="<?= base_url('financial/store') ?>">
                 <div class="form-group">
                     <label>Loại phiếu</label>
-                    <select name="type" class="form-control">
+                    <select name="type" id="type" class="form-control" onchange="updateTransactionTypes()">
                         <option value="income">Thu</option>
                         <option value="expense">Chi</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Loại giao dịch</label>
+                    <select name="transaction_type_id" id="transaction_type_id" class="form-control">
+                        <option value="">-- Chọn loại giao dịch --</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -48,7 +54,32 @@
     </div>
 </div>
 <script>
+    // Dữ liệu loại giao dịch từ PHP
+    const incomeTypes = <?= json_encode($income_types) ?>;
+    const expenseTypes = <?= json_encode($expense_types) ?>;
+
+    function updateTransactionTypes() {
+        const typeSelect = document.getElementById('type');
+        const transactionTypeSelect = document.getElementById('transaction_type_id');
+        const selectedType = typeSelect.value;
+
+        // Xóa tất cả options cũ
+        transactionTypeSelect.innerHTML = '<option value="">-- Chọn loại giao dịch --</option>';
+
+        // Thêm options mới dựa trên loại phiếu
+        const types = selectedType === 'income' ? incomeTypes : expenseTypes;
+        types.forEach(function(type) {
+            const option = document.createElement('option');
+            option.value = type.id;
+            option.textContent = type.name;
+            transactionTypeSelect.appendChild(option);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        // Khởi tạo dropdown loại giao dịch
+        updateTransactionTypes();
+
         const amountInput = document.querySelector('input[name="amount"]');
         if (amountInput) {
             amountInput.addEventListener('input', function(e) {

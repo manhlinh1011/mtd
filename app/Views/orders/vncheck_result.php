@@ -34,31 +34,22 @@
             <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
             <input type="hidden" name="tracking_code" value="<?= htmlspecialchars($trackingCode) ?>">
             <div class="form-group row">
-                <label for="customer_id" class="col-sm-2 col-form-label text-right">Chọn khách hàng</label>
+                <label for="customer_autocomplete" class="col-sm-2 col-form-label text-right">Chọn khách hàng</label>
                 <div class="col-sm-8">
-                    <select class="form-control" id="customer_id" name="customer_id" required>
-                        <option value="">-- Chọn khách hàng --</option>
-                        <?php foreach ($customers as $customer): ?>
-                            <?php if ($customer['customer_code'] !== 'KHOTM'): ?>
-                                <option value="<?= $customer['id'] ?>">
-                                    <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)
-                                </option>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="text" class="form-control" id="customer_autocomplete" placeholder="Nhập mã hoặc tên khách hàng..." autocomplete="off">
+                    <input type="hidden" name="customer_id" id="customer_id">
+                    <small id="customer_warning" class="form-text text-danger" style="display:none;"></small>
                 </div>
                 <div class="col-sm-2">
                     <button type="submit" class="btn btn-success btn-block">Xác nhận</button>
                 </div>
             </div>
-
             <div class="form-group row" id="subCustomerRow" style="display: none;">
-                <label for="sub_customer_id" class="col-sm-2 col-form-label text-right">Chọn mã phụ</label>
+                <label for="sub_customer_autocomplete" class="col-sm-2 col-form-label text-right">Chọn mã phụ</label>
                 <div class="col-sm-10">
-                    <select class="form-control" id="sub_customer_id" name="sub_customer_id">
-                        <option value="">-- Không chọn mã phụ --</option>
-                        <!-- Sub customer options will be loaded via AJAX -->
-                    </select>
+                    <input type="text" class="form-control" id="sub_customer_autocomplete" placeholder="Nhập mã phụ hoặc tên..." autocomplete="off">
+                    <input type="hidden" name="sub_customer_id" id="sub_customer_id">
+                    <small id="sub_customer_warning" class="form-text text-danger" style="display:none;"></small>
                 </div>
             </div>
             <div class="form-group row">
@@ -101,3 +92,112 @@
         </form>
     <?php endif; ?>
 <?php endif; ?>
+
+<?= $this->section('scripts') ?>
+<script>
+    // Tích hợp autocomplete, cảnh báo, select-all cho form động
+    $(function() {
+        // Tự động select all khi focus/click vào input khách hàng
+        $(document).on('focus click', '#customer_autocomplete', function() {
+            $(this).select();
+        });
+        $(document).on('focus click', '#sub_customer_autocomplete', function() {
+            $(this).select();
+        });
+
+        $(document).on('input', '#customer_autocomplete', function() {
+            $('#customer_warning').hide();
+        });
+        $(document).on('input', '#sub_customer_autocomplete', function() {
+            $('#sub_customer_warning').hide();
+        });
+
+        $(document).on('blur', '#customer_autocomplete', function() {
+            setTimeout(function() {
+                if (!$('#customer_id').val()) {
+                    $('#customer_warning').text('Vui lòng chọn đúng khách hàng từ danh sách gợi ý!').show();
+                } else {
+                    $('#customer_warning').hide();
+                }
+            }, 200);
+        });
+        $(document).on('blur', '#sub_customer_autocomplete', function() {
+            setTimeout(function() {
+                if (!$('#sub_customer_id').val() && $('#subCustomerRow').is(':visible')) {
+                    $('#sub_customer_warning').text('Vui lòng chọn đúng mã phụ từ danh sách gợi ý!').show();
+                } else {
+                    $('#sub_customer_warning').hide();
+                }
+            }, 200);
+        });
+
+        // Gắn autocomplete khi form được render lại
+        $(document).on('ready ajaxComplete', function() {
+            $('#customer_autocomplete').autocomplete({
+                minLength: 2,
+                source: function(request, response) {
+                    $.ajax({
+                        url: '<?= base_url('orders/search-customers') ?>',
+                        dataType: 'json',
+                        data: {
+                            term: request.term
+                        },
+                        success: function(data) {
+                            response(data);
+                        }
+                    });
+                },
+                select: function(event, ui) {
+                    $('#customer_id').val(ui.item.id);
+                    if (ui.item.has_sub) {
+                        $('#subCustomerRow').show();
+                        $('#sub_customer_autocomplete').val('');
+                        $('#sub_customer_id').val('');
+                    } else {
+                        $('#subCustomerRow').hide();
+                        $('#sub_customer_autocomplete').val('');
+                        $('#sub_customer_id').val('');
+                    }
+                },
+                change: function(event, ui) {
+                    if (!ui.item) {
+                        $('#customer_id').val('');
+                        $('#subCustomerRow').hide();
+                        $('#sub_customer_autocomplete').val('');
+                        $('#sub_customer_id').val('');
+                    }
+                }
+            });
+            $('#sub_customer_autocomplete').autocomplete({
+                minLength: 1,
+                source: function(request, response) {
+                    var customerId = $('#customer_id').val();
+                    if (!customerId) {
+                        response([]);
+                        return;
+                    }
+                    $.ajax({
+                        url: '<?= base_url('orders/search-sub-customers') ?>',
+                        dataType: 'json',
+                        data: {
+                            term: request.term,
+                            customer_id: customerId
+                        },
+                        success: function(data) {
+                            response(data);
+                        }
+                    });
+                },
+                select: function(event, ui) {
+                    $('#sub_customer_id').val(ui.item.id);
+                },
+                change: function(event, ui) {
+                    if (!ui.item) {
+                        $('#sub_customer_id').val('');
+                    }
+                }
+            });
+        });
+    });
+</script>
+<?= $this->endSection() ?>

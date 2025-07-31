@@ -48,6 +48,14 @@
                         <div class="col-md-2">
                             <input type="text" name="tracking_code" class="form-control" placeholder="Nhập mã vận chuyển" value="<?= esc($tracking_code ?? '') ?>">
                         </div>
+                        <!-- Thêm bộ lọc trạng thái thanh toán -->
+                        <div class="col-md-2">
+                            <select name="payment_status" class="form-control" style="width: 180px; display: inline-block;">
+                                <option value="">Tất cả trạng thái thanh toán</option>
+                                <option value="paid" <?= isset($payment_status) && $payment_status == 'paid' ? 'selected' : '' ?>>Đã thanh toán</option>
+                                <option value="unpaid" <?= isset($payment_status) && $payment_status == 'unpaid' ? 'selected' : '' ?>>Chưa thanh toán</option>
+                            </select>
+                        </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary">Tìm Kiếm</button>
                             <a href="<?= base_url('invoices/export-excel-by-filter') . '?' . http_build_query($queryParams) ?>" class="btn btn-success">
@@ -113,17 +121,21 @@
                                     <strong><?= number_format($invoice['total_amount'], 0, ',', '.') ?></strong>
                                 </td>
                                 <td class="text-center">
-                                    <?php if ($invoice['has_order_without_price']): ?>
-                                        <span class="badge badge-danger" style="background-color: #dc3545; color: #fff;">Chờ sửa giá</span>
-                                    <?php elseif ($invoice['shipping_confirmed_at'] === null): ?>
-                                        <span class="badge badge-warning">Đang xuất</span>
-                                    <?php else: ?>
+                                    <?php if ($invoice['shipping_confirmed_at']): ?>
                                         <span class="badge badge-success">Đã xuất</span>
+                                    <?php elseif ($invoice['has_order_without_price']): ?>
+                                        <span class="badge badge-danger" style="background-color: #dc3545; color: #fff;">Chờ sửa giá</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-warning">Đang xuất</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <?php if (!$invoice['has_shipping_request']): ?>
-                                        <?php if ($invoice['has_order_without_price']): ?>
+                                        <?php if ($invoice['is_free_shipping'] == 1): ?>
+                                            <a href="<?= base_url('shipping-manager/create/' . $invoice['id']) ?>" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-truck"></i> Yêu cầu ship
+                                            </a>
+                                        <?php elseif ($invoice['has_order_without_price']): ?>
                                             <button type="button" class="btn btn-secondary btn-sm" onclick="showPriceWarning()" disabled style="cursor:not-allowed;opacity:0.7;">
                                                 <i class="fas fa-truck"></i> Yêu cầu ship
                                             </button>

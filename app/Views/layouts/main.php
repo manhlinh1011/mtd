@@ -19,10 +19,12 @@
     <link href="<?= base_url('assets/libs/datatables/buttons.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/libs/datatables/responsive.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
     <link href="<?= base_url('assets/libs/datatables/select.bootstrap4.css') ?>" rel="stylesheet" type="text/css">
+    <link href="<?= base_url('assets/libs/bootstrap-datepicker/bootstrap-datepicker.css') ?>" rel="stylesheet" type="text/css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/4.1.5/css/flag-icons.min.css">
     <!-- Thêm jQuery -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         a,
@@ -99,6 +101,8 @@
     <script src="<?= base_url('') ?>assets/js/vendor.min.js"></script>
     <script src="<?= base_url('') ?>assets/libs/sweetalert2/sweetalert2.min.js"></script>
     <script src="<?= base_url('') ?>assets/js/app.min.js"></script>
+    <script src="<?= base_url('') ?>assets/libs/bootstrap-datepicker/bootstrap-datepicker.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
     <?= $this->renderSection('scripts') ?>
 </body>
 

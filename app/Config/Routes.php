@@ -68,6 +68,9 @@ $routes->group('orders', function ($routes) {
     $routes->get('export-excel-by-filter', 'OrderController::exportExcelByFilter');
     $routes->get('get-order-count', 'OrderController::getOrderCount');
     $routes->get('zero-price', 'OrderController::zeroPrice');
+    // Autocomplete API
+    $routes->get('search-customers', 'OrderController::searchCustomers');
+    $routes->get('search-sub-customers', 'OrderController::searchSubCustomers');
 });
 
 $routes->get('/api/customers', 'ApiController::getAllCustomers');
@@ -176,6 +179,7 @@ $routes->group('financial', function ($routes) {
     $routes->get('fund-transactions', 'FinancialController::fundTransactions');
     $routes->get('export-fund-transactions', 'FinancialController::exportFundTransactions');
 });
+$routes->post('financial/update-transaction-type', 'FinancialController::updateTransactionType');
 $routes->get('/customers/sub-customers', 'CustomerController::subCustomerIndex');
 $routes->get('/customers/edit-sub/(:num)', 'CustomerController::subCustomerEdit/$1');
 $routes->post('/customers/edit-sub/(:num)', 'CustomerController::subCustomerEdit/$1');
@@ -311,3 +315,12 @@ $routes->group('transaction-types', ['filter' => 'auth'], function ($routes) {
         $routes->get('statistics', 'TransactionTypeController::getStatistics');
     });
 });
+
+$routes->get('transaction-action-config', 'TransactionActionConfigController::index');
+$routes->get('transaction-action-config/create', 'TransactionActionConfigController::create');
+$routes->post('transaction-action-config/store', 'TransactionActionConfigController::store');
+$routes->get('transaction-action-config/edit/(:num)', 'TransactionActionConfigController::edit/$1');
+$routes->post('transaction-action-config/update/(:num)', 'TransactionActionConfigController::update/$1');
+$routes->post('transaction-action-config/delete/(:num)', 'TransactionActionConfigController::delete/$1');
+
+$routes->post('/auto-api/create-order', 'AutoApiController::createAutoOrder');

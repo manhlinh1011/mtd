@@ -165,6 +165,7 @@ class InvoiceController extends BaseController
         $fromDate = $this->request->getGet('from_date');
         $toDate = $this->request->getGet('to_date');
         $currentPage = $this->request->getGet('page') ?? 1;
+        $paymentStatus = $this->request->getGet('payment_status') ?? '';
 
         // Get the request object
         $request = service('request');
@@ -210,6 +211,10 @@ class InvoiceController extends BaseController
             $query->where('invoices.created_at <=', $toDate . ' 23:59:59');
         }
 
+        if (!empty($paymentStatus)) {
+            $query->where('invoices.payment_status', $paymentStatus);
+        }
+
         // Lấy dữ liệu phân trang
         $invoices = $query->paginate($perPage, 'default', $currentPage);
         $data['pager'] = $invoiceModel->pager;
@@ -253,6 +258,11 @@ class InvoiceController extends BaseController
             $existingShipping = $shippingManagerModel->where('invoice_id', $invoice['id'])->first();
             $invoice['has_shipping_request'] = ($existingShipping !== null); // Thêm trường mới vào dữ liệu invoice
             $invoice['has_order_without_price'] = $hasOrderWithoutPrice;
+
+            // Lấy thông tin khách hàng để lấy is_free_shipping
+            $customerModel = new \App\Models\CustomerModel();
+            $customer = $customerModel->find($invoice['customer_id']);
+            $invoice['is_free_shipping'] = $customer['is_free_shipping'] ?? 0;
         }
 
         // Lấy danh sách khách hàng để hiển thị dropdown
@@ -266,6 +276,7 @@ class InvoiceController extends BaseController
         $data['customer_code'] = $customerCode;
         $data['from_date'] = $fromDate;
         $data['to_date'] = $toDate;
+        $data['payment_status'] = $paymentStatus;
 
         return view('invoices/list', $data);
     }
@@ -380,7 +391,7 @@ class InvoiceController extends BaseController
             sub_customers.id as sub_customer_id,
             sub_customers.sub_customer_code
         ')
-            ->join('customers', 'orders.customer_id = customers.id', 'left')
+            ->join('customers', 'orders.customer_id = customers.id')
             ->join('sub_customers', 'orders.sub_customer_id = sub_customers.id', 'left')
             ->whereIn('orders.id', $orderIds)
             ->findAll();
@@ -971,32 +982,46 @@ class InvoiceController extends BaseController
                 ]);
             }
 
-            // Kiểm tra nếu giao hàng chưa được xác nhận
-            // if ($invoice['shipping_status'] !== 'confirmed') {
-            //     return $this->response->setJSON([
-            //         'success' => false,
-            //         'message' => 'Phiếu xuất phải được xác nhận giao hàng trước khi thanh toán.',
-            //         'modal_type' => 'shipping_not_confirmed'
-            //     ]);
-            // }
-
             // Tính total_amount động (giống trong detail và index)
             $orders = $orderModel->where('invoice_id', $invoiceId)->findAll();
             $total = 0;
-            $invalidOrders = []; // Danh sách đơn hàng có giá = 0
-
-            // Kiểm tra điều kiện 1: Tiền của các order phải > 0
             foreach ($orders as $order) {
                 $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
                 $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
                 $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']) + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
+                $total += $finalPrice;
+            }
+            $totalAmount = $total + (float)($invoice['shipping_fee'] ?? 0) + (float)($invoice['other_fee'] ?? 0);
 
+            // Lấy số dư của khách hàng bằng phương thức getCustomerBalance
+            $customer = $customerModel->find($invoice['customer_id']);
+            $currentBalance = (float)$customerModel->getCustomerBalance($invoice['customer_id']);
+            $isFreeShipping = $customer['is_free_shipping'] ?? 0;
+
+            // Nếu khách miễn phí vận chuyển và tổng tiền = 0 thì xác nhận thanh toán luôn, không kiểm tra transaction và không kiểm tra giá
+            if ($isFreeShipping == 1 && $totalAmount == 0) {
+                $invoiceModel->update($invoiceId, ['payment_status' => 'paid']);
+                $customerDetailLink = base_url("customers/detail/{$invoice['customer_id']}");
+                return $this->response->setJSON([
+                    'success' => true,
+                    'message' => 'Xác nhận thanh toán thành công cho đơn miễn phí vận chuyển!',
+                    'modal_type' => 'payment_success',
+                    'total_paid' => number_format($totalAmount, 2, ',', '.'),
+                    'new_balance' => number_format($currentBalance, 2, ',', '.'),
+                    'customer_detail_link' => $customerDetailLink
+                ]);
+            }
+
+            // Kiểm tra điều kiện 1: Tiền của các order phải > 0
+            $invalidOrders = [];
+            foreach ($orders as $order) {
+                $priceByWeight = $order['total_weight'] * $order['price_per_kg'];
+                $priceByVolume = $order['volume'] * $order['price_per_cubic_meter'];
+                $finalPrice = max($priceByWeight, $priceByVolume) + ($order['domestic_fee'] * $order['exchange_rate']) + $order['official_quota_fee'] + $order['vat_tax'] + $order['import_tax'] + $order['other_tax'];
                 if ($finalPrice <= 0) {
                     $invalidOrders[] = "#{$order['id']} (Mã vận chuyển: {$order['tracking_code']})";
                 }
-                $total += $finalPrice;
             }
-
             if (!empty($invalidOrders)) {
                 $message = "Một số đơn hàng cần được cập nhật giá: " . implode(', ', $invalidOrders) . ". Vui lòng cập nhật giá cho 1kg hoặc 1 khối.";
                 return $this->response->setJSON([
@@ -1006,15 +1031,6 @@ class InvoiceController extends BaseController
                     'invalid_orders' => $invalidOrders
                 ]);
             }
-
-            $totalAmount = $total + (float)($invoice['shipping_fee'] ?? 0) + (float)($invoice['other_fee'] ?? 0);
-
-            // Lấy số dư của khách hàng bằng phương thức getCustomerBalance
-            $customer = $customerModel->find($invoice['customer_id']);
-            $currentBalance = (float)$customerModel->getCustomerBalance($invoice['customer_id']);
-
-            // Debug để kiểm tra giá trị
-            log_message('debug', "Invoice ID: {$invoiceId}, Customer ID: {$invoice['customer_id']}, Current Balance: {$currentBalance}, Total Amount: {$totalAmount}");
 
             // Kiểm tra điều kiện 2: Chưa đủ số dư
             // Sử dụng epsilon để so sánh số thực
@@ -1543,7 +1559,7 @@ class InvoiceController extends BaseController
                     'notes' => "Hoàn tiền do chuyển đơn hàng #$orderId khỏi phiếu xuất #$originalInvoiceId",
                     'created_by' => session()->get('user_id')
                 ];
-                $transactionModel->insert($transactionData);
+                $transactionModel->addTransaction($transactionData);
             }
 
             // Ghi log hành động
@@ -2368,7 +2384,7 @@ class InvoiceController extends BaseController
                     date('d/m/Y H:i', strtotime($invoice['created_at'])),
                     $invoice['customer_code'],
                     $order['sub_customer_code'] ?? '-',
-                    null, // Để trống cột "Mã vận chuyển", sẽ ghi riêng bằng setValueExplicit
+                    $order['tracking_code'],
                     $order['package_code'],
                     $order['product_type_name'],
                     $order['quantity'],
@@ -2889,7 +2905,7 @@ class InvoiceController extends BaseController
             ];
 
             // Kiểm tra kết quả insert
-            $insertResult = $transactionModel->insert($transactionData);
+            $insertResult = $transactionModel->addTransaction($transactionData);
             if (!$insertResult) {
                 log_message('error', 'depositAjax - Insert transaction failed: ' . json_encode($transactionModel->errors()));
                 return $this->response->setJSON([

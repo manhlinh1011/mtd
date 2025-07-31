@@ -219,7 +219,7 @@ class TransactionController extends BaseController
             ];
 
             // Kiểm tra kết quả insert
-            $insertResult = $transactionModel->insert($transactionData);
+            $insertResult = $transactionModel->addTransaction($transactionData);
             if (!$insertResult) {
                 log_message('error', 'withdraw - Insert transaction failed: ' . json_encode($transactionModel->errors()));
                 return $this->response->setJSON([

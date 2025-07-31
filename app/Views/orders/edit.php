@@ -37,34 +37,23 @@
                             </div>
                         </div>
 
-                        <!-- Khách hàng -->
+                        <!-- Khách hàng (autocomplete) -->
                         <div class="form-group row">
-                            <label for="customer_id" class="col-sm-3 col-form-label text-right">Khách hàng</label>
+                            <label for="customer_autocomplete" class="col-sm-3 col-form-label text-right">Khách hàng</label>
                             <div class="col-sm-9">
-                                <select class="form-control" id="customer_id" name="customer_id" required>
-                                    <?php foreach ($customers as $customer): ?>
-                                        <option value="<?= $customer['id'] ?>" <?= $customer['id'] == $order['customer_id'] ? 'selected' : '' ?>>
-                                            <?= $customer['customer_code'] ?> (<?= $customer['fullname'] ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <input type="text" class="form-control" id="customer_autocomplete" placeholder="Nhập mã hoặc tên khách hàng..." value="<?= $order['customer_code'] ?> (<?= $order['fullname'] ?>)" autocomplete="off" required>
+                                <input type="hidden" name="customer_id" id="customer_id" value="<?= $order['customer_id'] ?>">
+                                <small id="customer_warning" class="form-text text-danger" style="display:none;"></small>
                             </div>
                         </div>
 
-                        <!-- Mã phụ (Hiện tại với mã phụ của khách hàng được chọn) -->
-                        <div class="form-group row" id="subCustomerRow" <?= (!isset($hasSubCustomers) || !$hasSubCustomers) ? 'style="display: none;"' : '' ?>>
-                            <label for="sub_customer_id" class="col-sm-3 col-form-label text-right">Mã phụ</label>
+                        <!-- Mã phụ (autocomplete) -->
+                        <div class="form-group row" id="subCustomerRow" style="display: none;">
+                            <label for="sub_customer_autocomplete" class="col-sm-3 col-form-label text-right">Mã phụ</label>
                             <div class="col-sm-9">
-                                <select class="form-control" id="sub_customer_id" name="sub_customer_id">
-                                    <option value="">-- Không chọn mã phụ --</option>
-                                    <?php if (isset($subCustomers) && is_array($subCustomers)): ?>
-                                        <?php foreach ($subCustomers as $subCustomer): ?>
-                                            <option value="<?= $subCustomer['id'] ?>" <?= $order['sub_customer_id'] == $subCustomer['id'] ? 'selected' : '' ?>>
-                                                <?= $subCustomer['sub_customer_code'] ?> (<?= $subCustomer['fullname'] ?>)
-                                            </option>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </select>
+                                <input type="text" class="form-control" id="sub_customer_autocomplete" placeholder="Nhập mã phụ hoặc tên..." value="<?php if (isset($order['sub_customer_code'])): ?><?= $order['sub_customer_code'] ?> (<?= $order['sub_customer_name'] ?>)<?php endif; ?>" autocomplete="off">
+                                <input type="hidden" name="sub_customer_id" id="sub_customer_id" value="<?= $order['sub_customer_id'] ?>">
+                                <small id="sub_customer_warning" class="form-text text-danger" style="display:none;"></small>
                             </div>
                         </div>
 
@@ -315,7 +304,10 @@
         box-shadow: 0 0 5px #007bff;
     }
 </style>
-<!-- JavaScript để định dạng số tiền -->
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+
 <script>
     // Hàm định dạng số với phần nghìn
     function formatCurrency(input) {
@@ -359,53 +351,123 @@
                 pricePerCubicMeterInput.value = pricePerCubicMeterInput.value.replace(/\./g, '');
             }
         });
+    });
+</script>
 
-        // Xử lý hiển thị và cập nhật mã phụ khi thay đổi khách hàng
-        const customerSelect = document.getElementById('customer_id');
-        const subCustomerRow = document.getElementById('subCustomerRow');
-        const subCustomerSelect = document.getElementById('sub_customer_id');
-
-        // Khi thay đổi khách hàng
-        if (customerSelect) {
-            customerSelect.addEventListener('change', function() {
-                const customerId = this.value;
-
-                // Xóa tất cả các option cũ trừ option đầu tiên
-                while (subCustomerSelect.options.length > 1) {
-                    subCustomerSelect.remove(1);
-                }
-
-                if (customerId) {
-                    // Gọi API để lấy danh sách mã phụ
-                    fetch('<?= base_url('orders/get-sub-customers') ?>?customer_id=' + customerId)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 200 && data.data.length > 0) {
-                                // Hiển thị dòng chọn mã phụ
-                                subCustomerRow.style.display = 'flex';
-
-                                // Thêm các option mới
-                                data.data.forEach(subCustomer => {
-                                    const option = document.createElement('option');
-                                    option.value = subCustomer.id;
-                                    option.textContent = `${subCustomer.sub_customer_code} (${subCustomer.fullname})`;
-                                    subCustomerSelect.appendChild(option);
-                                });
-                            } else {
-                                // Ẩn dòng chọn mã phụ nếu không có mã phụ
-                                subCustomerRow.style.display = 'none';
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error fetching sub customers:', error);
-                            subCustomerRow.style.display = 'none';
-                        });
+<script>
+    $(function() {
+        console.log('Script autocomplete đã chạy');
+        // Autocomplete cho khách hàng
+        $("#customer_autocomplete").autocomplete({
+            minLength: 2,
+            source: function(request, response) {
+                $.ajax({
+                    url: "<?= base_url('orders/search-customers') ?>",
+                    dataType: "json",
+                    data: {
+                        term: request.term
+                    },
+                    success: function(data) {
+                        response(data);
+                    }
+                });
+            },
+            select: function(event, ui) {
+                $("#customer_id").val(ui.item.id);
+                if (ui.item.has_sub) {
+                    $("#subCustomerRow").show();
+                    $("#sub_customer_autocomplete").val('');
+                    $("#sub_customer_id").val('');
                 } else {
-                    // Ẩn dòng chọn mã phụ nếu không chọn khách hàng
-                    subCustomerRow.style.display = 'none';
+                    $("#subCustomerRow").hide();
+                    $("#sub_customer_autocomplete").val('');
+                    $("#sub_customer_id").val('');
                 }
-            });
-        }
+            },
+            change: function(event, ui) {
+                if (!ui.item) {
+                    $("#customer_id").val('');
+                    $("#subCustomerRow").hide();
+                    $("#sub_customer_autocomplete").val('');
+                    $("#sub_customer_id").val('');
+                }
+            }
+        });
+
+        // Autocomplete cho mã phụ
+        $("#sub_customer_autocomplete").autocomplete({
+            minLength: 1,
+            source: function(request, response) {
+                var customerId = $("#customer_id").val();
+                if (!customerId) {
+                    response([]);
+                    return;
+                }
+                $.ajax({
+                    url: "<?= base_url('orders/search-sub-customers') ?>",
+                    dataType: "json",
+                    data: {
+                        term: request.term,
+                        customer_id: customerId
+                    },
+                    success: function(data) {
+                        response(data);
+                    }
+                });
+            },
+            select: function(event, ui) {
+                $("#sub_customer_id").val(ui.item.id);
+            },
+            change: function(event, ui) {
+                if (!ui.item) {
+                    $("#sub_customer_id").val('');
+                }
+            }
+        });
+
+        <?php if (!empty($order['sub_customer_id'])): ?>
+            $("#subCustomerRow").show();
+        <?php endif; ?>
+
+        // Cảnh báo khi blur input khách hàng
+        $("#customer_autocomplete").on('blur', function() {
+            setTimeout(function() { // Đợi autocomplete xử lý xong
+                if (!$("#customer_id").val()) {
+                    $("#customer_warning").text("Vui lòng chọn đúng khách hàng từ danh sách gợi ý!").show();
+                } else {
+                    $("#customer_warning").hide();
+                }
+            }, 200);
+        });
+
+        // Ẩn cảnh báo khi bắt đầu gõ lại
+        $("#customer_autocomplete").on('input', function() {
+            $("#customer_warning").hide();
+        });
+
+        // Cảnh báo khi blur input mã phụ
+        $("#sub_customer_autocomplete").on('blur', function() {
+            setTimeout(function() {
+                if (!$("#sub_customer_id").val() && $("#subCustomerRow").is(":visible")) {
+                    $("#sub_customer_warning").text("Vui lòng chọn đúng mã phụ từ danh sách gợi ý!").show();
+                } else {
+                    $("#sub_customer_warning").hide();
+                }
+            }, 200);
+        });
+        // Ẩn cảnh báo khi bắt đầu gõ lại mã phụ
+        $("#sub_customer_autocomplete").on('input', function() {
+            $("#sub_customer_warning").hide();
+        });
+
+        // Tự động select all khi focus/click vào input khách hàng
+        $("#customer_autocomplete").on('focus click', function() {
+            $(this).select();
+        });
+        // Tự động select all khi focus/click vào input mã phụ
+        $("#sub_customer_autocomplete").on('focus click', function() {
+            $(this).select();
+        });
     });
 </script>
 <?= $this->endSection() ?>

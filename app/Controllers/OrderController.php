@@ -31,7 +31,9 @@ class OrderController extends BaseController
             'from_date' => $this->request->getGet('from_date'),
             'to_date' => $this->request->getGet('to_date'),
             'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
-            'order_code' => $this->request->getGet('order_code')
+            'order_code' => $this->request->getGet('order_code'),
+            'vn_from_date' => $this->request->getGet('vn_from_date'),
+            'vn_to_date' => $this->request->getGet('vn_to_date'),
         ];
 
         // Lấy thông tin mã phụ từ GET
@@ -107,6 +109,13 @@ class OrderController extends BaseController
             }
         }
 
+        if (!empty($filters['vn_from_date'])) {
+            $query->where('orders.vietnam_stock_date >=', $filters['vn_from_date'] . ' 00:00:00');
+        }
+        if (!empty($filters['vn_to_date'])) {
+            $query->where('orders.vietnam_stock_date <=', $filters['vn_to_date'] . ' 23:59:59');
+        }
+
         // Lấy dữ liệu phân trang
         $data['orders'] = $query->paginate($perPage);
         $data['pager'] = $this->orderModel->pager;
@@ -134,6 +143,8 @@ class OrderController extends BaseController
         $data['sub_customer_id'] = $subCustomerId;
         $data['shipping_status'] = $filters['shipping_status'];
         $data['order_code'] = $filters['order_code'];
+        $data['vn_from_date'] = $filters['vn_from_date'];
+        $data['vn_to_date'] = $filters['vn_to_date'];
 
         return view('orders/index', $data);
     }
@@ -407,7 +418,9 @@ class OrderController extends BaseController
 
         // Lấy thông tin đơn hàng
         $order = $orderModel
-            ->select('orders.*, invoices.payment_status as invoice_payment_status, invoices.shipping_status as invoice_shipping_status, invoices.id as invoice_id')
+            ->select('orders.*, customers.customer_code, customers.fullname, sub_customers.sub_customer_code, sub_customers.fullname as sub_customer_name, invoices.payment_status as invoice_payment_status, invoices.shipping_status as invoice_shipping_status, invoices.id as invoice_id')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('sub_customers', 'sub_customers.id = orders.sub_customer_id', 'left')
             ->join('invoices', 'invoices.id = orders.invoice_id', 'left')
             ->find($id);
 
@@ -1682,6 +1695,7 @@ class OrderController extends BaseController
 
     public function exportExcelByFilter()
     {
+
         try {
             // Lấy thông tin tìm kiếm từ GET
             $filters = [
@@ -1692,6 +1706,8 @@ class OrderController extends BaseController
                 'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
                 'order_code' => $this->request->getGet('order_code'),
                 'sub_customer_id' => $this->request->getGet('sub_customer_id') ?? 'ALL',
+                'vn_from_date' => $this->request->getGet('vn_from_date'),
+                'vn_to_date' => $this->request->getGet('vn_to_date'),
                 'export_type' => $this->request->getGet('export_type') ?? 'recent_1000' // recent_1000, all
             ];
 
@@ -1760,6 +1776,13 @@ class OrderController extends BaseController
                         $query->where('i.shipping_confirmed_at IS NOT NULL');
                         break;
                 }
+            }
+
+            if (!empty($filters['vn_from_date'])) {
+                $query->where('orders.vietnam_stock_date >=', $filters['vn_from_date'] . ' 00:00:00');
+            }
+            if (!empty($filters['vn_to_date'])) {
+                $query->where('orders.vietnam_stock_date <=', $filters['vn_to_date'] . ' 23:59:59');
             }
 
             // Giới hạn số lượng bản ghi dựa trên export_type
@@ -1920,7 +1943,9 @@ class OrderController extends BaseController
                 'to_date' => $this->request->getGet('to_date'),
                 'shipping_status' => $this->request->getGet('shipping_status') ?? 'ALL',
                 'order_code' => $this->request->getGet('order_code'),
-                'sub_customer_id' => $this->request->getGet('sub_customer_id') ?? 'ALL'
+                'sub_customer_id' => $this->request->getGet('sub_customer_id') ?? 'ALL',
+                'vn_from_date' => $this->request->getGet('vn_from_date'),
+                'vn_to_date' => $this->request->getGet('vn_to_date'),
             ];
 
             // Cấu hình query để đếm số lượng
@@ -1977,6 +2002,13 @@ class OrderController extends BaseController
                         $query->where('i.shipping_confirmed_at IS NOT NULL');
                         break;
                 }
+            }
+
+            if (!empty($filters['vn_from_date'])) {
+                $query->where('orders.vietnam_stock_date >=', $filters['vn_from_date'] . ' 00:00:00');
+            }
+            if (!empty($filters['vn_to_date'])) {
+                $query->where('orders.vietnam_stock_date <=', $filters['vn_to_date'] . ' 23:59:59');
             }
 
             $result = $query->first();
@@ -2097,5 +2129,64 @@ class OrderController extends BaseController
             'order_code' => $filters['order_code'],
         ];
         return view('orders/zero_price', $data);
+    }
+
+    // Tìm kiếm khách hàng (autocomplete)
+    public function searchCustomers()
+    {
+        $term = $this->request->getGet('term');
+        $results = [];
+        if ($term) {
+            $builder = $this->customerModel
+                ->select('id, customer_code, fullname')
+                ->groupStart()
+                ->like('customer_code', $term)
+                ->orLike('fullname', $term)
+                ->groupEnd()
+                ->orderBy('customer_code', 'ASC')
+                ->limit(20)
+                ->findAll();
+
+            foreach ($builder as $row) {
+                // Kiểm tra có mã phụ không
+                $hasSub = (new \App\Models\SubCustomerModel())->where('customer_id', $row['id'])->countAllResults() > 0;
+                $results[] = [
+                    'id' => $row['id'],
+                    'label' => $row['customer_code'] . ' (' . $row['fullname'] . ')',
+                    'value' => $row['customer_code'] . ' (' . $row['fullname'] . ')',
+                    'has_sub' => $hasSub
+                ];
+            }
+        }
+        return $this->response->setJSON($results);
+    }
+
+    // Tìm kiếm mã phụ (autocomplete)
+    public function searchSubCustomers()
+    {
+        $term = $this->request->getGet('term');
+        $customerId = $this->request->getGet('customer_id');
+        $results = [];
+        if ($term && $customerId) {
+            $builder = (new \App\Models\SubCustomerModel())
+                ->select('id, sub_customer_code, fullname')
+                ->where('customer_id', $customerId)
+                ->groupStart()
+                ->like('sub_customer_code', $term)
+                ->orLike('fullname', $term)
+                ->groupEnd()
+                ->orderBy('sub_customer_code', 'ASC')
+                ->limit(20)
+                ->findAll();
+
+            foreach ($builder as $row) {
+                $results[] = [
+                    'id' => $row['id'],
+                    'label' => $row['sub_customer_code'] . ' (' . $row['fullname'] . ')',
+                    'value' => $row['sub_customer_code'] . ' (' . $row['fullname'] . ')'
+                ];
+            }
+        }
+        return $this->response->setJSON($results);
     }
 }

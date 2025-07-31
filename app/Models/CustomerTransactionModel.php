@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use CodeIgniter\Model;
+use App\Models\TransactionActionConfigModel;
 
 class CustomerTransactionModel extends Model
 {
@@ -12,6 +13,14 @@ class CustomerTransactionModel extends Model
 
     public function addTransaction($data)
     {
+        // Nếu chưa có transaction_type_id, tự động lấy theo action_code
+        if (empty($data['transaction_type_id']) && !empty($data['transaction_type'])) {
+            $configModel = new TransactionActionConfigModel();
+            $typeId = $configModel->getTypeIdByAction($data['transaction_type']);
+            if ($typeId) {
+                $data['transaction_type_id'] = $typeId;
+            }
+        }
         return $this->insert($data);
     }
 

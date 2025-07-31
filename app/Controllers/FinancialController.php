@@ -17,10 +17,12 @@ class FinancialController extends BaseController
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
                                u2.fullname as approver_name,
-                               funds.name as fund_name')
+                               funds.name as fund_name,
+                               tt.name as transaction_type_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
             ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
+            ->join('transaction_types tt', 'tt.id = financial_transactions.transaction_type_id', 'left')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
         // Xử lý bộ lọc
@@ -93,10 +95,12 @@ class FinancialController extends BaseController
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
                                u2.fullname as approver_name,
-                               funds.name as fund_name')
+                               funds.name as fund_name,
+                               tt.name as transaction_type_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
             ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
+            ->join('transaction_types tt', 'tt.id = financial_transactions.transaction_type_id', 'left')
             ->where('type', 'income')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
@@ -110,10 +114,12 @@ class FinancialController extends BaseController
         $query = $model->select('financial_transactions.*, 
                                u1.fullname as creator_name, 
                                u2.fullname as approver_name,
-                               funds.name as fund_name')
+                               funds.name as fund_name,
+                               tt.name as transaction_type_name')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
             ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
             ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
+            ->join('transaction_types tt', 'tt.id = financial_transactions.transaction_type_id', 'left')
             ->where('type', 'expense')
             ->orderBy('financial_transactions.created_at', 'DESC');
 
@@ -125,7 +131,17 @@ class FinancialController extends BaseController
     {
         $fundModel = new FundModel();
         $funds = $fundModel->findAll();
-        return view('financial/create', ['funds' => $funds]);
+
+        // Load transaction types
+        $transactionTypeModel = new \App\Models\TransactionTypeModel();
+        $incomeTypes = $transactionTypeModel->getIncomeTypes();
+        $expenseTypes = $transactionTypeModel->getExpenseTypes();
+
+        return view('financial/create', [
+            'funds' => $funds,
+            'income_types' => $incomeTypes,
+            'expense_types' => $expenseTypes
+        ]);
     }
 
     public function store()
@@ -138,6 +154,7 @@ class FinancialController extends BaseController
         $amount = $this->request->getPost('amount');
         $description = $this->request->getPost('description');
         $fundId = $this->request->getPost('fund_id');
+        $transactionTypeId = $this->request->getPost('transaction_type_id');
         $userId = $session->get('user_id');
         $role = $session->get('role');
         $transactionDate = $this->request->getPost('transaction_date');
@@ -152,6 +169,7 @@ class FinancialController extends BaseController
 
         $data = [
             'type' => $type,
+            'transaction_type_id' => $transactionTypeId,
             'amount' => $amount,
             'description' => $description,
             'created_by' => $userId,
@@ -276,6 +294,34 @@ class FinancialController extends BaseController
         return redirect()->back()->with('success', 'Cập nhật ngày giao dịch thành công.');
     }
 
+    public function updateTransactionType()
+    {
+        $id = $this->request->getPost('id');
+        $table = $this->request->getPost('table'); // 'financial' hoặc 'customer'
+        $transactionTypeId = $this->request->getPost('transaction_type_id');
+
+        if (!$id || !$transactionTypeId || !in_array($table, ['financial', 'customer'])) {
+            session()->setFlashdata('error', 'Dữ liệu không hợp lệ');
+            return redirect()->back();
+        }
+
+        if ($table === 'financial') {
+            $model = new FinancialTransactionModel();
+        } else {
+            $model = new CustomerTransactionModel();
+        }
+
+        $updated = $model->update($id, ['transaction_type_id' => $transactionTypeId]);
+
+        if ($updated) {
+            session()->setFlashdata('success', 'Cập nhật loại giao dịch thành công!');
+        } else {
+            session()->setFlashdata('error', 'Cập nhật thất bại');
+        }
+
+        return redirect()->back();
+    }
+
     public function fundTransactions()
     {
         $perPage = 20;
@@ -284,25 +330,32 @@ class FinancialController extends BaseController
         $dateFrom = $this->request->getGet('date_from');
         $dateTo = $this->request->getGet('date_to');
         $status = $this->request->getGet('status');
+        $transactionTypeId = $this->request->getGet('transaction_type_id');
 
         // Lấy danh sách quỹ
         $fundModel = new \App\Models\FundModel();
         $funds = $fundModel->findAll();
 
+        // Lấy danh sách loại giao dịch
+        $transactionTypeModel = new \App\Models\TransactionTypeModel();
+        $transactionTypes = $transactionTypeModel->getActiveTypes();
+
         // Lấy dữ liệu nạp tiền và rút tiền khách hàng
         $customerModel1 = new \App\Models\CustomerTransactionModel();
         $customerModel2 = new \App\Models\CustomerTransactionModel();
         // Deposit
-        $depositQuery = $customerModel1->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "income" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code')
+        $depositQuery = $customerModel1->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "income" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code, tt.name as transaction_type_name')
             ->join('funds', 'funds.id = customer_transactions.fund_id', 'left')
             ->join('users u1', 'u1.id = customer_transactions.created_by', 'left')
             ->join('customers', 'customers.id = customer_transactions.customer_id', 'left')
+            ->join('transaction_types tt', 'tt.id = customer_transactions.transaction_type_id', 'left')
             ->where('customer_transactions.transaction_type', 'deposit');
         // Withdraw
-        $withdrawQuery = $customerModel2->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "withdraw" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code')
+        $withdrawQuery = $customerModel2->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "withdraw" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code, tt.name as transaction_type_name')
             ->join('funds', 'funds.id = customer_transactions.fund_id', 'left')
             ->join('users u1', 'u1.id = customer_transactions.created_by', 'left')
             ->join('customers', 'customers.id = customer_transactions.customer_id', 'left')
+            ->join('transaction_types tt', 'tt.id = customer_transactions.transaction_type_id', 'left')
             ->where('customer_transactions.transaction_type', 'withdraw');
         // Filter
         if ($fundId) {
@@ -316,6 +369,10 @@ class FinancialController extends BaseController
         if ($dateTo) {
             $depositQuery->where('customer_transactions.transaction_date <=', $dateTo);
             $withdrawQuery->where('customer_transactions.transaction_date <=', $dateTo);
+        }
+        if ($transactionTypeId) {
+            $depositQuery->where('customer_transactions.transaction_type_id', $transactionTypeId);
+            $withdrawQuery->where('customer_transactions.transaction_type_id', $transactionTypeId);
         }
         if ($status && $status !== 'approved') {
             $customerTransactions = [];
@@ -336,10 +393,11 @@ class FinancialController extends BaseController
 
         // Lấy dữ liệu thu chi
         $financialModel = new \App\Models\FinancialTransactionModel();
-        $financialQuery = $financialModel->select('financial_transactions.id, financial_transactions.created_at, financial_transactions.transaction_date, financial_transactions.type, financial_transactions.amount, financial_transactions.fund_id, financial_transactions.description, financial_transactions.status, financial_transactions.created_by, financial_transactions.approved_by, funds.name as fund_name, u1.fullname as creator_name, u2.fullname as approver_name, 0 as is_customer_deposit')
+        $financialQuery = $financialModel->select('financial_transactions.id, financial_transactions.created_at, financial_transactions.transaction_date, financial_transactions.type, financial_transactions.amount, financial_transactions.fund_id, financial_transactions.description, financial_transactions.status, financial_transactions.created_by, financial_transactions.approved_by, funds.name as fund_name, u1.fullname as creator_name, u2.fullname as approver_name, 0 as is_customer_deposit, tt.name as transaction_type_name')
             ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
-            ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left');
+            ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
+            ->join('transaction_types tt', 'tt.id = financial_transactions.transaction_type_id', 'left');
         if ($fundId) {
             $financialQuery->where('financial_transactions.fund_id', $fundId);
         }
@@ -348,6 +406,9 @@ class FinancialController extends BaseController
         }
         if ($dateTo) {
             $financialQuery->where('financial_transactions.transaction_date <=', $dateTo);
+        }
+        if ($transactionTypeId) {
+            $financialQuery->where('financial_transactions.transaction_type_id', $transactionTypeId);
         }
         if ($status) {
             $financialQuery->where('financial_transactions.status', $status);
@@ -418,9 +479,11 @@ class FinancialController extends BaseController
         return view('financial/fund_transactions', [
             'transactions' => $pagedTransactions,
             'funds' => $funds,
+            'transactionTypes' => $transactionTypes,
             'fundFilter' => $fundId,
             'dateFromFilter' => $dateFrom,
             'dateToFilter' => $dateTo,
+            'transactionTypeFilter' => $transactionTypeId,
             'pager' => [
                 'currentPage' => $page,
                 'perPage' => $perPage,
@@ -442,36 +505,68 @@ class FinancialController extends BaseController
         $dateFrom = $this->request->getGet('date_from');
         $dateTo = $this->request->getGet('date_to');
         $status = $this->request->getGet('status');
+        $transactionTypeId = $this->request->getGet('transaction_type_id');
 
         $fundModel = new \App\Models\FundModel();
         $funds = $fundModel->findAll();
 
-        $customerModel = new \App\Models\CustomerTransactionModel();
-        $customerQuery = $customerModel->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "income" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code')
+        // Lấy dữ liệu nạp tiền và rút tiền khách hàng
+        $customerModel1 = new \App\Models\CustomerTransactionModel();
+        $customerModel2 = new \App\Models\CustomerTransactionModel();
+        // Deposit
+        $depositQuery = $customerModel1->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "income" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code, tt.name as transaction_type_name')
             ->join('funds', 'funds.id = customer_transactions.fund_id', 'left')
             ->join('users u1', 'u1.id = customer_transactions.created_by', 'left')
             ->join('customers', 'customers.id = customer_transactions.customer_id', 'left')
+            ->join('transaction_types tt', 'tt.id = customer_transactions.transaction_type_id', 'left')
             ->where('customer_transactions.transaction_type', 'deposit');
+        // Withdraw
+        $withdrawQuery = $customerModel2->select('customer_transactions.id, customer_transactions.created_at, customer_transactions.transaction_date, "withdraw" as type, customer_transactions.amount, customer_transactions.fund_id, customer_transactions.notes as description, "approved" as status, customer_transactions.created_by, NULL as approved_by, funds.name as fund_name, u1.fullname as creator_name, NULL as approver_name, 1 as is_customer_deposit, customers.customer_code, tt.name as transaction_type_name')
+            ->join('funds', 'funds.id = customer_transactions.fund_id', 'left')
+            ->join('users u1', 'u1.id = customer_transactions.created_by', 'left')
+            ->join('customers', 'customers.id = customer_transactions.customer_id', 'left')
+            ->join('transaction_types tt', 'tt.id = customer_transactions.transaction_type_id', 'left')
+            ->where('customer_transactions.transaction_type', 'withdraw');
+        // Filter
         if ($fundId) {
-            $customerQuery->where('customer_transactions.fund_id', $fundId);
+            $depositQuery->where('customer_transactions.fund_id', $fundId);
+            $withdrawQuery->where('customer_transactions.fund_id', $fundId);
         }
         if ($dateFrom) {
-            $customerQuery->where('customer_transactions.transaction_date >=', $dateFrom);
+            $depositQuery->where('customer_transactions.transaction_date >=', $dateFrom);
+            $withdrawQuery->where('customer_transactions.transaction_date >=', $dateFrom);
         }
         if ($dateTo) {
-            $customerQuery->where('customer_transactions.transaction_date <=', $dateTo);
+            $depositQuery->where('customer_transactions.transaction_date <=', $dateTo);
+            $withdrawQuery->where('customer_transactions.transaction_date <=', $dateTo);
+        }
+        if ($transactionTypeId) {
+            $depositQuery->where('customer_transactions.transaction_type_id', $transactionTypeId);
+            $withdrawQuery->where('customer_transactions.transaction_type_id', $transactionTypeId);
         }
         if ($status && $status !== 'approved') {
             $customerTransactions = [];
         } else {
-            $customerTransactions = $customerQuery->findAll();
+            $depositTransactions = $depositQuery->findAll();
+            $withdrawTransactions = $withdrawQuery->findAll();
+            // Gắn cờ và mô tả cho withdraw
+            foreach ($withdrawTransactions as &$w) {
+                $w['is_customer_withdraw'] = true;
+                $w['type'] = 'withdraw';
+                if (!empty($w['customer_code'])) {
+                    $w['description'] = '<span class="badge bg-warning">' . esc($w['customer_code']) . '</span> ' . $w['description'];
+                }
+            }
+            unset($w);
+            $customerTransactions = array_merge($depositTransactions, $withdrawTransactions);
         }
 
         $financialModel = new \App\Models\FinancialTransactionModel();
-        $financialQuery = $financialModel->select('financial_transactions.id, financial_transactions.created_at, financial_transactions.transaction_date, financial_transactions.type, financial_transactions.amount, financial_transactions.fund_id, financial_transactions.description, financial_transactions.status, financial_transactions.created_by, financial_transactions.approved_by, funds.name as fund_name, u1.fullname as creator_name, u2.fullname as approver_name, 0 as is_customer_deposit')
+        $financialQuery = $financialModel->select('financial_transactions.id, financial_transactions.created_at, financial_transactions.transaction_date, financial_transactions.type, financial_transactions.amount, financial_transactions.fund_id, financial_transactions.description, financial_transactions.status, financial_transactions.created_by, financial_transactions.approved_by, funds.name as fund_name, u1.fullname as creator_name, u2.fullname as approver_name, 0 as is_customer_deposit, tt.name as transaction_type_name')
             ->join('funds', 'funds.id = financial_transactions.fund_id', 'left')
             ->join('users u1', 'u1.id = financial_transactions.created_by', 'left')
-            ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left');
+            ->join('users u2', 'u2.id = financial_transactions.approved_by', 'left')
+            ->join('transaction_types tt', 'tt.id = financial_transactions.transaction_type_id', 'left');
         if ($fundId) {
             $financialQuery->where('financial_transactions.fund_id', $fundId);
         }
@@ -480,6 +575,9 @@ class FinancialController extends BaseController
         }
         if ($dateTo) {
             $financialQuery->where('financial_transactions.transaction_date <=', $dateTo);
+        }
+        if ($transactionTypeId) {
+            $financialQuery->where('financial_transactions.transaction_type_id', $transactionTypeId);
         }
         if ($status) {
             $financialQuery->where('financial_transactions.status', $status);
@@ -503,9 +601,10 @@ class FinancialController extends BaseController
         $sheet->setCellValue('G1', 'Quỹ');
         $sheet->setCellValue('H1', 'Mã khách hàng');
         $sheet->setCellValue('I1', 'Mô tả');
-        $sheet->setCellValue('J1', 'Trạng thái');
-        $sheet->setCellValue('K1', 'Người tạo');
-        $sheet->setCellValue('L1', 'Người duyệt');
+        $sheet->setCellValue('J1', 'Loại giao dịch');
+        $sheet->setCellValue('K1', 'Trạng thái');
+        $sheet->setCellValue('L1', 'Người tạo');
+        $sheet->setCellValue('M1', 'Người duyệt');
 
         $row = 2;
         $stt = 1;
@@ -513,15 +612,33 @@ class FinancialController extends BaseController
             $sheet->setCellValue('A' . $row, $stt++);
             $sheet->setCellValue('B' . $row, $t['created_at'] ? date('d/m/Y H:i', strtotime($t['created_at'])) : '');
             $sheet->setCellValue('C' . $row, $t['transaction_date'] ? date('d/m/Y', strtotime($t['transaction_date'])) : '');
-            $sheet->setCellValue('D' . $row, $t['type'] === 'income' ? 'Thu' : 'Chi');
-            $sheet->setCellValue('E' . $row, $t['type'] === 'income' ? $t['amount'] : '');
-            $sheet->setCellValue('F' . $row, $t['type'] === 'expense' ? $t['amount'] : '');
+
+            // Xử lý loại giao dịch
+            if ($t['type'] === 'income') {
+                $sheet->setCellValue('D' . $row, 'Thu');
+                $sheet->setCellValue('E' . $row, $t['amount']);
+                $sheet->setCellValue('F' . $row, '');
+            } elseif ($t['type'] === 'expense') {
+                $sheet->setCellValue('D' . $row, 'Chi');
+                $sheet->setCellValue('E' . $row, '');
+                $sheet->setCellValue('F' . $row, $t['amount']);
+            } elseif ($t['type'] === 'withdraw' && !empty($t['is_customer_withdraw'])) {
+                $sheet->setCellValue('D' . $row, 'Rút');
+                $sheet->setCellValue('E' . $row, '');
+                $sheet->setCellValue('F' . $row, abs($t['amount']));
+            } else {
+                $sheet->setCellValue('D' . $row, $t['type']);
+                $sheet->setCellValue('E' . $row, '');
+                $sheet->setCellValue('F' . $row, '');
+            }
+
             $sheet->setCellValue('G' . $row, $t['fund_name'] ?? '');
-            $sheet->setCellValue('H' . $row, !empty($t['is_customer_deposit']) ? ($t['customer_code'] ?? '') : '');
-            $sheet->setCellValue('I' . $row, $t['description'] ?? '');
-            $sheet->setCellValue('J' . $row, $t['status'] === 'approved' ? 'Đã duyệt' : 'Chờ duyệt');
-            $sheet->setCellValue('K' . $row, $t['creator_name'] ?? '');
-            $sheet->setCellValue('L' . $row, $t['approver_name'] ?? '');
+            $sheet->setCellValue('H' . $row, !empty($t['is_customer_deposit']) || !empty($t['is_customer_withdraw']) ? ($t['customer_code'] ?? '') : '');
+            $sheet->setCellValue('I' . $row, strip_tags($t['description'] ?? ''));
+            $sheet->setCellValue('J' . $row, $t['transaction_type_name'] ?? '');
+            $sheet->setCellValue('K' . $row, $t['status'] === 'approved' ? 'Đã duyệt' : 'Chờ duyệt');
+            $sheet->setCellValue('L' . $row, $t['creator_name'] ?? '');
+            $sheet->setCellValue('M' . $row, $t['approver_name'] ?? '');
             $row++;
         }
 
